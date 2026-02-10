@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY || "");
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   const { url } = req.query;
 
   if (!url) {
@@ -18,6 +18,7 @@ export default async function handler(req, res) {
     
     return res.status(200).json(JSON.parse(text));
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ error: "Error en la IA" });
   }
-}
+};
