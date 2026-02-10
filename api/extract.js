@@ -1,18 +1,21 @@
 export default async function handler(req, res) {
+  // 1. Configuración de CORS para que tu web pueda consultar la API
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Responder rápido a las peticiones de comprobación (browser pre-flight)
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.VITE_GEMINI_API_KEY;
   const { url } = req.query;
 
-  if (!url) return res.status(200).json({ status: "online", message: "Listo para extraer datos." });
-  if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
+  // Verificaciones iniciales
+  if (!url) return res.status(200).json({ status: "online", message: "API conectada. Envía una URL en el parámetro ?url=" });
+  if (!apiKey) return res.status(500).json({ error: "Falta configurar VITE_GEMINI_API_KEY en Vercel" });
 
-  // Usamos el modelo 2.0 Flash que aparece en tu lista
-  const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // Usamos el modelo 'flash-latest' que es el más estable en cuotas gratuitas
+  const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(googleApiUrl, {
@@ -21,8 +24,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Eres un experto inmobiliario. Analiza esta URL: ${url}. 
-            Extrae los datos y responde UNICAMENTE con este formato JSON:
+            text: `Actúa como un extractor de datos profesional. Analiza esta URL inmobiliaria: ${url}. 
+            Extrae la información y responde ÚNICAMENTE con un objeto JSON (sin texto extra, sin markdown) que tenga esta estructura:
             {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`
           }]
         }]
@@ -31,17 +34,26 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    if (data.error) throw new Error(data.error.message);
+    // Si hay error de cuota o de Google, lo capturamos aquí
+    if (data.error) {
+      return res.status(data.error.code || 500).json({
+        error: "Error de Google",
+        message: data.error.message,
+        tip: "Si el error es de 'Quota', espera 1 minuto o crea una nueva API Key en Google AI Studio."
+      });
+    }
 
-    // Extraemos el texto de la respuesta
+    // Extraer y limpiar el texto de la IA
     const aiText = data.candidates[0].content.parts[0].text;
     const cleanJson = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
     
+    // Devolvemos el JSON final a tu aplicación
     return res.status(200).json(JSON.parse(cleanJson));
 
   } catch (error) {
+    console.error("Error en el handler:", error);
     return res.status(500).json({ 
-      error: "Error con Gemini 2.0", 
+      error: "Error en el servidor de extracción", 
       details: error.message 
     });
   }
