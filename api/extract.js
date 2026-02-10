@@ -12,32 +12,18 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   try {
-    // 1. Simular un navegador real para evitar bloqueos
-    const webResponse = await fetch(url, { 
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'es-ES,es;q=0.8'
-      } 
-    });
-
+    // 1. Usamos Jina AI para leer la web (es gratuito y convierte la web en texto limpio para IA)
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const webResponse = await fetch(jinaUrl);
+    
     if (!webResponse.ok) {
-      throw new Error(`La web de la inmobiliaria bloqueó la conexión (Status: ${webResponse.status})`);
+      throw new Error("No se pudo extraer el contenido de la web.");
     }
 
-    const htmlText = await webResponse.text();
-    
-    // Limpieza agresiva de basura (CSS, SVG, Scripts)
-    const cleanText = htmlText
-      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
-      .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
-      .replace(/<svg\b[^>]*>([\s\S]*?)<\/svg>/gim, "")
-      .replace(/<[^>]*>?/gm, ' ') // Quitar todas las etiquetas HTML
-      .replace(/\s+/g, ' ')       // Quitar espacios extra
-      .substring(0, 15000); 
+    const cleanText = await webResponse.text();
 
-    // 2. Llamada a Gemini
-    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+    // 2. Enviamos ese texto a Gemini usando el modelo que SI funcionó: gemini-flash-latest
+    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
     const response = await fetch(googleApiUrl, {
       method: 'POST',
@@ -45,11 +31,11 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Analiza este contenido de una web inmobiliaria y extrae los datos REALES. 
-            Si un dato no está, pon "No disponible". NO INVENTES PRECIOS.
+            text: `Analiza el siguiente texto de una propiedad inmobiliaria y extrae los datos exactos. 
+            Si el precio o dirección no están claros, pon "Consultar". NO INVENTES DATOS.
             
             CONTENIDO:
-            ${cleanText}
+            ${cleanText.substring(0, 10000)}
 
             RESPONDE SOLO JSON:
             {"title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0}`
@@ -59,7 +45,11 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
+    
+    if (data.error) {
+      // Si el modelo 'flash-latest' falla, intentamos con el ID técnico como último recurso
+      throw new Error(data.error.message);
+    }
 
     const aiText = data.candidates[0].content.parts[0].text;
     const cleanJson = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -68,7 +58,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     return res.status(500).json({ 
-      error: "Error de lectura", 
+      error: "Error de extracción", 
       message: error.message 
     });
   }
