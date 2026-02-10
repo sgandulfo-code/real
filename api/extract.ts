@@ -1,34 +1,24 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Vercel usará la clave que configuraste en "Environment Variables"
 const genAI = new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY || "");
 
-export default async function handler(req: any) {
-  const { searchParams } = new URL(req.url);
-  const url = searchParams.get('url');
+export default async function handler(req: any, res: any) {
+  // En Vercel estándar, los parámetros vienen en req.query
+  const url = req.query.url;
 
   if (!url) {
-    return new Response(JSON.stringify({ error: "No se proporcionó URL" }), { status: 400 });
+    return res.status(400).json({ error: "Falta la URL" });
   }
 
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `Extrae información de este enlace inmobiliario: ${url}. 
-    Responde ÚNICAMENTE un JSON con: title, price, address, sourceName, lat (número), lng (número).`;
+    const prompt = `Extrae información de este enlace: ${url}. Responde solo JSON: { "title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0 }`;
     
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     
-    return new Response(text, {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return res.status(200).json(JSON.parse(text));
   } catch (error) {
-    return new Response(JSON.stringify({ error: "Fallo al extraer datos" }), { status: 500 });
+    return res.status(500).json({ error: "Error en la IA" });
   }
 }
-
-export const config = {
-  runtime: 'edge',
-};
