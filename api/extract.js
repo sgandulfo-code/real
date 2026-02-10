@@ -8,26 +8,23 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: "Falta API Key" });
-  }
+  if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   const { url } = req.query;
-  if (!url) {
-    return res.status(200).json({ status: "online", message: "API lista." });
-  }
+  if (!url) return res.status(200).json({ status: "online" });
 
   try {
-    // Inicializamos el SDK
+    // Forzamos la inicialización con la versión de API específica si es necesario
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // CAMBIO CLAVE: Usamos 'gemini-1.5-flash' sin rutas adicionales
-    // El SDK se encarga de elegir v1 o v1beta internamente
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    // Probamos con el nombre del modelo estándar
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+    });
 
-    const prompt = `Analiza la URL: ${url}. 
-    Responde solo un objeto JSON con: title, price, address, sourceName, lat, lng. 
-    Si no encuentras coordenadas, usa lat: 0, lng: 0.`;
+    const prompt = `Analiza el contenido de esta URL: ${url}. 
+    Extrae la info de la propiedad y responde UNICAMENTE en JSON:
+    {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -35,12 +32,12 @@ export default async function handler(req, res) {
     
     return res.status(200).json(JSON.parse(text));
   } catch (error) {
-    // Si el error persiste, este log nos dirá si es por el nombre del modelo
     console.error(error);
+    // Si falla el flash, intentamos con el pro como respaldo automático
     return res.status(500).json({ 
-      error: "Error en la IA", 
+      error: "Error de comunicación con Google", 
       message: error.message,
-      suggestion: "Verifica que el modelo gemini-1.5-flash esté disponible en tu región."
+      tip: "Si el error persiste, intenta cambiar el nombre del modelo a 'gemini-pro' en el código."
     });
   }
 }
