@@ -8,20 +8,22 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Falta API Key en Vercel" });
+  if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   const { url } = req.query;
-  if (!url) return res.status(200).json({ status: "online", message: "Esperando URL..." });
+  if (!url) return res.status(200).json({ status: "online" });
 
   try {
+    // Inicializamos sin especificar versión, dejando que el SDK decida
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Cambiamos a gemini-pro que es el modelo más estable para la v1
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // Intentamos con el ID técnico completo
+    const model = genAI.getGenerativeModel({ 
+      model: "models/gemini-1.5-flash" 
+    });
 
-    const prompt = `Analiza la web inmobiliaria: ${url}. 
-    Extrae datos y responde SOLO en JSON:
-    {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`;
+    const prompt = `Analiza la web: ${url}. 
+    Responde solo JSON: {"title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0}`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
@@ -29,11 +31,11 @@ export default async function handler(req, res) {
     
     return res.status(200).json(JSON.parse(text));
   } catch (error) {
-    console.error("Error detallado:", error);
+    console.error(error);
     return res.status(500).json({ 
-      error: "Error de IA", 
+      error: "Error persistente de Google", 
       message: error.message,
-      check: "Verifica que tu API Key sea válida para el modelo gemini-pro"
+      check: "Si esto falla, el problema podría ser que la API Key es de un proyecto antiguo de Google Cloud en lugar de AI Studio (aistudio.google.com)"
     });
   }
 }
