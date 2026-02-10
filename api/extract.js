@@ -12,17 +12,31 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   try {
-    // 1. Intentamos obtener el contenido de la web manualmente
-    const webResponse = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    // 1. Simular un navegador real para evitar bloqueos
+    const webResponse = await fetch(url, { 
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.8'
+      } 
+    });
+
+    if (!webResponse.ok) {
+      throw new Error(`La web de la inmobiliaria bloqueó la conexión (Status: ${webResponse.status})`);
+    }
+
     const htmlText = await webResponse.text();
     
-    // Limpiamos un poco el HTML para no saturar a la IA (quitamos scripts y estilos)
+    // Limpieza agresiva de basura (CSS, SVG, Scripts)
     const cleanText = htmlText
       .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
       .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
-      .substring(0, 10000); // Enviamos los primeros 10k caracteres para no exceder límites
+      .replace(/<svg\b[^>]*>([\s\S]*?)<\/svg>/gim, "")
+      .replace(/<[^>]*>?/gm, ' ') // Quitar todas las etiquetas HTML
+      .replace(/\s+/g, ' ')       // Quitar espacios extra
+      .substring(0, 15000); 
 
-    // 2. Le pasamos el texto a Gemini con instrucciones de CERO INVENCIÓN
+    // 2. Llamada a Gemini
     const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
     const response = await fetch(googleApiUrl, {
@@ -31,14 +45,14 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Basándote EXCLUSIVAMENTE en el siguiente texto de una página web, extrae los datos de la propiedad. 
-            Si el dato no está en el texto, responde "No disponible". No uses conocimiento previo ni inventes precios.
-
-            TEXTO DE LA WEB:
+            text: `Analiza este contenido de una web inmobiliaria y extrae los datos REALES. 
+            Si un dato no está, pon "No disponible". NO INVENTES PRECIOS.
+            
+            CONTENIDO:
             ${cleanText}
 
             RESPONDE SOLO JSON:
-            {"title": "título exacto", "price": "precio con moneda", "address": "dirección", "sourceName": "nombre de la inmobiliaria", "lat": 0, "lng": 0}`
+            {"title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0}`
           }]
         }]
       })
@@ -53,10 +67,9 @@ export default async function handler(req, res) {
     return res.status(200).json(JSON.parse(cleanJson));
 
   } catch (error) {
-    console.error(error);
     return res.status(500).json({ 
-      error: "Error de extracción", 
-      details: "No se pudo leer la web o la IA falló. Verifica que la URL sea pública." 
+      error: "Error de lectura", 
+      message: error.message 
     });
   }
 }
