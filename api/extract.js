@@ -1,6 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export default async function handler(req, res) {
+  // Configuración de CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -8,34 +7,48 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
-
   const { url } = req.query;
-  if (!url) return res.status(200).json({ status: "online" });
+
+  if (!url) return res.status(200).json({ status: "online", message: "Esperando URL..." });
+  if (!apiKey) return res.status(500).json({ error: "No se encontró la API Key en Vercel" });
 
   try {
-    // Inicializamos sin especificar versión, dejando que el SDK decida
-    const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Intentamos con el ID técnico completo
-    const model = genAI.getGenerativeModel({ 
-      model: "models/gemini-1.5-flash" 
+    // Llamada directa a la API de Google (v1 estable)
+    const googleApiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    const response = await fetch(googleApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Analiza la siguiente web inmobiliaria: ${url}. 
+            Extrae los datos y responde UNICAMENTE un objeto JSON con esta estructura:
+            {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`
+          }]
+        }]
+      })
     });
 
-    const prompt = `Analiza la web: ${url}. 
-    Responde solo JSON: {"title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0}`;
+    const data = await response.json();
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+    if (data.error) {
+      throw new Error(data.error.message || "Error en la respuesta de Google");
+    }
+
+    // Extraer el texto de la respuesta de Google
+    let aiText = data.candidates[0].content.parts[0].text;
     
-    return res.status(200).json(JSON.parse(text));
+    // Limpiar el JSON de posibles marcas de la IA
+    const cleanJson = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+    
+    return res.status(200).json(JSON.parse(cleanJson));
+
   } catch (error) {
-    console.error(error);
+    console.error("Error detallado:", error);
     return res.status(500).json({ 
-      error: "Error persistente de Google", 
-      message: error.message,
-      check: "Si esto falla, el problema podría ser que la API Key es de un proyecto antiguo de Google Cloud en lugar de AI Studio (aistudio.google.com)"
+      error: "Error en el servidor de extracción", 
+      message: error.message 
     });
   }
 }
