@@ -8,22 +8,19 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
+  if (!apiKey) return res.status(500).json({ error: "Falta API Key en Vercel" });
 
   const { url } = req.query;
-  if (!url) return res.status(200).json({ status: "online" });
+  if (!url) return res.status(200).json({ status: "online", message: "Esperando URL..." });
 
   try {
-    // Forzamos la inicialización con la versión de API específica si es necesario
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Probamos con el nombre del modelo estándar
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-    });
+    // Cambiamos a gemini-pro que es el modelo más estable para la v1
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    const prompt = `Analiza el contenido de esta URL: ${url}. 
-    Extrae la info de la propiedad y responde UNICAMENTE en JSON:
+    const prompt = `Analiza la web inmobiliaria: ${url}. 
+    Extrae datos y responde SOLO en JSON:
     {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`;
 
     const result = await model.generateContent(prompt);
@@ -32,12 +29,11 @@ export default async function handler(req, res) {
     
     return res.status(200).json(JSON.parse(text));
   } catch (error) {
-    console.error(error);
-    // Si falla el flash, intentamos con el pro como respaldo automático
+    console.error("Error detallado:", error);
     return res.status(500).json({ 
-      error: "Error de comunicación con Google", 
+      error: "Error de IA", 
       message: error.message,
-      tip: "Si el error persiste, intenta cambiar el nombre del modelo a 'gemini-pro' en el código."
+      check: "Verifica que tu API Key sea válida para el modelo gemini-pro"
     });
   }
 }
