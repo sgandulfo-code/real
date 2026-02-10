@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Manejo de CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -10,22 +9,17 @@ export default async function handler(req, res) {
   const { url } = req.query;
 
   if (!url) return res.status(200).json({ status: "online" });
-  if (!apiKey) return res.status(500).json({ error: "Falta API Key en Vercel" });
+  if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   try {
-    // 1. Obtener contenido vía Jina (más estable para evitar bloqueos)
+    // Usamos Jina pero con un timeout y codificación estricta
     const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
     const webResponse = await fetch(jinaUrl);
-    
-    if (!webResponse.ok) {
-      throw new Error(`Jina error: ${webResponse.status}`);
-    }
-
     const cleanText = await webResponse.text();
-    // Acortamos el texto para no saturar la memoria de la función serverless
-    const contextText = cleanText.substring(0, 8000);
 
-    // 2. Configurar llamada a Gemini
+    // Recortamos el texto alrededor de donde suele estar el precio para darle prioridad
+    const contextText = cleanText.substring(0, 10000);
+
     const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
     const geminiResponse = await fetch(googleApiUrl, {
@@ -34,15 +28,23 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Analiza este texto de una web inmobiliaria y extrae:
-            - Título de la propiedad
-            - Precio (busca números con USD o $)
-            - Dirección completa
-            - Nombre de la inmobiliaria
-            - Latitud y Longitud (solo si figuran, si no 0)
-
-            IMPORTANTE: Responde UNICAMENTE un objeto JSON. Si no encuentras un dato, pon "No disponible".
+            text: `Eres un experto en portales de RE/MAX. Analiza el texto adjunto.
             
+            INSTRUCCIÓN DE PRECIO:
+            - El precio de venta aparece SIEMPRE después de la palabra "Venta" y ANTES de la palabra "Expensas".
+            - Ignora el valor de las Expensas.
+            - Busca el patrón: Venta [SÍMBOLO MONEDA] [NÚMERO] Expensas.
+            
+            Extrae:
+            1. title: Título de la propiedad.
+            2. price: El valor de venta encontrado entre "Venta" y "Expensas".
+            3. address: Dirección en Argentina.
+            4. sourceName: "RE/MAX"
+            5. lat/lng: Busca coordenadas en el texto o pon 0.
+
+            Responde exclusivamente este JSON:
+            {"title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0}
+
             TEXTO:
             ${contextText}`
           }]
@@ -51,32 +53,16 @@ export default async function handler(req, res) {
     });
 
     const data = await geminiResponse.json();
-
-    if (data.error) {
-      return res.status(500).json({ error: "Error de Google", details: data.error.message });
-    }
-
-    // Validar que existan candidatos antes de acceder a ellos
-    if (!data.candidates || !data.candidates[0]?.content?.parts[0]?.text) {
-      throw new Error("Gemini devolvió una respuesta vacía o inválida");
-    }
+    if (data.error) throw new Error(data.error.message);
 
     const aiText = data.candidates[0].content.parts[0].text;
-    
-    // Limpieza de JSON ultra-segura
     const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("La IA no devolvió un formato JSON válido");
-    }
+    
+    if (!jsonMatch) throw new Error("Formato de respuesta inválido");
 
-    const cleanJson = JSON.parse(jsonMatch[0]);
-    return res.status(200).json(cleanJson);
+    return res.status(200).json(JSON.parse(jsonMatch[0]));
 
   } catch (error) {
-    console.error("Crash report:", error.message);
-    return res.status(500).json({ 
-      error: "Error interno del servidor", 
-      message: error.message 
-    });
+    return res.status(500).json({ error: "Error de extracción", message: error.message });
   }
 }
