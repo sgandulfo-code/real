@@ -11,8 +11,8 @@ export default async function handler(req, res) {
   if (!url) return res.status(200).json({ status: "online" });
   if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
-  // Probamos con v1beta que es donde suelen estar activos los modelos gratuitos de AI Studio/Cloud
-  const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // CAMBIO AQUÍ: Usamos gemini-pro en lugar de gemini-1.5-flash
+  const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
 
   try {
     const response = await fetch(googleApiUrl, {
@@ -21,22 +21,15 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Analiza esta web inmobiliaria: ${url}. Extrae: title, price, address, sourceName, lat, lng. Responde solo JSON puro.`
+            text: `Eres un extractor de datos inmobiliarios. Analiza esta URL: ${url}. 
+            Extrae y responde exclusivamente en JSON puro: 
+            {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`
           }]
         }]
       })
     });
 
     const data = await response.json();
-
-    // Si Google dice que no encuentra el modelo, intentamos con el nombre alternativo
-    if (data.error && data.error.message.includes("not found")) {
-      return res.status(404).json({
-        error: "Modelo no activo",
-        message: "Tu clave de Google aún no tiene acceso a gemini-1.5-flash. Intenta cambiar 'gemini-1.5-flash' por 'gemini-pro' en el código de api/extract.js",
-        debug: data.error.message
-      });
-    }
 
     if (data.error) throw new Error(data.error.message);
 
@@ -46,6 +39,9 @@ export default async function handler(req, res) {
     return res.status(200).json(JSON.parse(cleanJson));
 
   } catch (error) {
-    return res.status(500).json({ error: "Error de conexión", details: error.message });
+    return res.status(500).json({ 
+      error: "Error final de comunicación", 
+      details: error.message 
+    });
   }
 }
