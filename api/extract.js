@@ -6,33 +6,43 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const apiKey = process.env.VITE_GEMINI_API_KEY;
+  const { url } = req.query;
+
+  if (!url) return res.status(200).json({ status: "online", message: "Listo para extraer datos." });
   if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
-  // Esta URL consulta qué modelos tienes habilitados exactamente
-  const listModelsUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+  // Usamos el modelo 2.0 Flash que aparece en tu lista
+  const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   try {
-    const response = await fetch(listModelsUrl);
-    const data = await response.json();
-
-    if (data.error) {
-      return res.status(data.error.code || 500).json({
-        error: "Error de autenticación",
-        message: data.error.message,
-        hint: "Si dice 'API Key not valid', la clave de Cloud no tiene activada la Generative Language API."
-      });
-    }
-
-    // Extraemos solo los nombres de los modelos para que sea fácil de leer
-    const availableModels = data.models ? data.models.map(m => m.name) : "No se encontraron modelos";
-
-    return res.status(200).json({
-      mensaje: "Lista de modelos detectada para tu clave",
-      modelos: availableModels,
-      instruccion: "Dime cuál de estos nombres aparece en la lista para actualizar el código."
+    const response = await fetch(googleApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `Eres un experto inmobiliario. Analiza esta URL: ${url}. 
+            Extrae los datos y responde UNICAMENTE con este formato JSON:
+            {"title": "título", "price": "precio", "address": "dirección", "sourceName": "web", "lat": 0, "lng": 0}`
+          }]
+        }]
+      })
     });
 
+    const data = await response.json();
+
+    if (data.error) throw new Error(data.error.message);
+
+    // Extraemos el texto de la respuesta
+    const aiText = data.candidates[0].content.parts[0].text;
+    const cleanJson = aiText.replace(/```json/g, "").replace(/```/g, "").trim();
+    
+    return res.status(200).json(JSON.parse(cleanJson));
+
   } catch (error) {
-    return res.status(500).json({ error: "Error de red", details: error.message });
+    return res.status(500).json({ 
+      error: "Error con Gemini 2.0", 
+      details: error.message 
+    });
   }
 }
