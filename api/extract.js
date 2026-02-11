@@ -11,21 +11,18 @@ export default async function handler(req, res) {
   if (!url) return res.status(200).json({ status: "online" });
 
   try {
-    // 1. Usamos el motor de Jina Reader que es el más potente para saltar bloqueos
-    // Añadimos un prefijo que fuerza la lectura del contenido dinámico
-    const readerUrl = `https://r.jina.ai/${url}`;
-    
-    const webResponse = await fetch(readerUrl, {
-      headers: {
-        'X-Return-Format': 'text', // Forzamos texto plano para que sea rápido
-        'X-Wait-For-Selector': '.property-description' // Esperamos a que cargue la descripción
-      }
-    });
+    // 1. Obtenemos Metadatos y Screenshot con Microlink
+    // Esto funciona con RE/MAX, Zonaprop y cualquier web.
+    const microlinkUrl = `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true&meta=true`;
+    const metaResponse = await fetch(microlinkUrl);
+    const metaData = await metaResponse.json();
 
-    const cleanText = await webResponse.text();
+    const title = metaData.data.title || "";
+    const description = metaData.data.description || "";
+    const screenshot = metaData.data.screenshot?.url || "";
 
-    // 2. Llamamos a Gemini usando la versión "flash-latest" que es la que te funcionó
-    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    // 2. Le pedimos a Gemini que analice solo los metadatos (rápido y sin bloqueos)
+    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const geminiResponse = await fetch(googleApiUrl, {
       method: 'POST',
@@ -33,35 +30,42 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Analiza este texto de una propiedad.
-            - PRECIO: El valor de venta (esta entre 'Venta' y 'Expensas').
-            - DIRECCIÓN: Calle y altura.
-            - TÍTULO: Nombre de la publicación.
-
-            Responde ÚNICAMENTE este JSON:
-            {"title": "...", "price": "...", "address": "...", "sourceName": "RE/MAX", "lat": 0, "lng": 0}
-
-            TEXTO: ${cleanText.substring(0, 8000)}`
+            text: `Analiza este título: "${title}" y esta descripción: "${description}". 
+            Extrae el precio y la dirección para una web inmobiliaria argentina. 
+            Si no los encuentras, deja los campos vacíos. 
+            Responde SOLO JSON: {"price": "...", "address": "...", "title": "..."}`
           }]
         }]
       })
     });
 
-    const data = await geminiResponse.json();
-    
-    if (data.error) {
-      return res.status(500).json({ error: "Error de Gemini", details: data.error.message });
+    const geminiData = await geminiResponse.json();
+    let aiFields = { price: "", address: "", title: title };
+
+    if (geminiData.candidates) {
+      const aiText = geminiData.candidates[0].content.parts[0].text;
+      const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) aiFields = JSON.parse(jsonMatch[0]);
     }
 
-    const aiText = data.candidates[0].content.parts[0].text;
-    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-    
-    return res.status(200).json(JSON.parse(jsonMatch[0]));
+    // 3. Devolvemos todo al frontend
+    return res.status(200).json({
+      title: aiFields.title || title,
+      price: aiFields.price || "",
+      address: aiFields.address || "",
+      sourceName: metaData.data.publisher || "Inmobiliaria",
+      screenshot: screenshot, // Esta es la imagen que el usuario usará para confirmar
+      url: url
+    });
 
   } catch (error) {
-    return res.status(500).json({ 
-      error: "Error crítico", 
-      message: "No se pudo leer la inmobiliaria. RE/MAX está bloqueando el acceso." 
+    console.error(error);
+    return res.status(200).json({
+      title: "Carga manual requerida",
+      price: "",
+      address: "",
+      screenshot: "",
+      error: true
     });
   }
 }
