@@ -4,7 +4,7 @@ import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
 import Login from './components/Login';
 import SearchGroupsList from './components/SearchGroupsList';
-import PropertyVerifier from './components/PropertyVerifier'; // Asegúrate de haber creado este archivo
+import PropertyVerifier from './components/PropertyVerifier';
 
 const STORAGE_KEY_PROPS = 'proptrack_properties';
 const STORAGE_KEY_GROUPS = 'proptrack_groups';
@@ -14,29 +14,20 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
-  
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  
-  const [isAdding, setIsAdding] = useState(false);
   const [newUrl, setNewUrl] = useState('');
-  
-  // ESTADO NUEVO: Para controlar el modal de verificación
   const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
 
-  // Initial Load
   useEffect(() => {
     const savedUser = localStorage.getItem(STORAGE_KEY_USER);
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
-
     const savedGroups = localStorage.getItem(STORAGE_KEY_GROUPS);
     if (savedGroups) setSearchGroups(JSON.parse(savedGroups));
-
     const savedProps = localStorage.getItem(STORAGE_KEY_PROPS);
     if (savedProps) setAllProperties(JSON.parse(savedProps));
   }, []);
 
-  // Sync Persistence
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(searchGroups));
     localStorage.setItem(STORAGE_KEY_PROPS, JSON.stringify(allProperties));
@@ -72,25 +63,22 @@ const App: React.FC = () => {
     setSelectedGroupId(null);
   };
 
-  // CAMBIO AQUÍ: Ahora handleAddProperty solo activa el Verificador
   const handleAddProperty = () => {
     if (!newUrl || !selectedGroupId) return;
-    setVerifyingUrl(newUrl); // Esto abre el modal
+    setVerifyingUrl(newUrl);
   };
 
-  // NUEVA FUNCIÓN: Se ejecuta cuando confirmas los datos en el modal
   const onConfirmProperty = (verifiedData: any) => {
     if (!selectedGroupId) return;
-
     const newProp: Property = {
       id: Math.random().toString(36).substr(2, 9),
       searchGroupId: selectedGroupId,
       url: verifiedData.url || verifyingUrl || '',
-      title: verifiedData.title || 'Sin título',
+      title: verifiedData.title || 'Propiedad Nueva',
       price: verifiedData.price || 'Consultar',
-      address: verifiedData.address || 'Dirección no especificada',
-      lat: verifiedData.lat || 0,
-      lng: verifiedData.lng || 0,
+      address: verifiedData.address || 'Dirección pendiente',
+      lat: verifiedData.lat || -34.6037,
+      lng: verifiedData.lng || -58.3816,
       thumbnail: `https://picsum.photos/seed/${Math.random()}/600/400`,
       sourceName: verifiedData.sourceName || 'Inmobiliaria',
       favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(verifyingUrl || '').hostname}`,
@@ -101,10 +89,9 @@ const App: React.FC = () => {
       comments: '',
       createdAt: Date.now(),
     };
-
     setAllProperties(prev => [newProp, ...prev]);
     setNewUrl('');
-    setVerifyingUrl(null); // Cerramos el modal
+    setVerifyingUrl(null);
     setSelectedPropertyId(newProp.id);
   };
 
@@ -137,27 +124,11 @@ const App: React.FC = () => {
             </div>
             <div className="hidden sm:block">
                <nav className="flex items-center text-sm font-medium">
-                  <span 
-                    className="text-slate-400 cursor-pointer hover:text-slate-600"
-                    onClick={() => { setSelectedGroupId(null); setSelectedPropertyId(null); }}
-                  >
-                    My Searches
-                  </span>
+                  <span className="text-slate-400 cursor-pointer hover:text-slate-600" onClick={() => { setSelectedGroupId(null); setSelectedPropertyId(null); }}>My Searches</span>
                   {activeGroup && (
                     <>
                       <svg className="w-4 h-4 mx-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      <span 
-                        className={`${selectedProperty ? 'text-slate-400 hover:text-slate-600 cursor-pointer' : 'text-slate-900'}`}
-                        onClick={() => setSelectedPropertyId(null)}
-                      >
-                        {activeGroup.name}
-                      </span>
-                    </>
-                  )}
-                  {selectedProperty && (
-                    <>
-                      <svg className="w-4 h-4 mx-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      <span className="text-slate-900 truncate max-w-[150px]">{selectedProperty.title}</span>
+                      <span className={`${selectedProperty ? 'text-slate-400 hover:text-slate-600 cursor-pointer' : 'text-slate-900'}`} onClick={() => setSelectedPropertyId(null)}>{activeGroup.name}</span>
                     </>
                   )}
                </nav>
@@ -175,17 +146,42 @@ const App: React.FC = () => {
                   onChange={(e) => setNewUrl(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddProperty()}
                 />
-                <button 
-                  onClick={handleAddProperty}
-                  disabled={isAdding || !newUrl}
-                  className="absolute right-1 top-1 bottom-1 px-4 bg-indigo-600 text-white text-xs font-bold rounded-full disabled:bg-slate-300"
-                >
-                  ADD
-                </button>
+                <button onClick={handleAddProperty} disabled={!newUrl} className="absolute right-1 top-1 bottom-1 px-4 bg-indigo-600 text-white text-xs font-bold rounded-full disabled:bg-slate-300">ADD</button>
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-900 leading-none">{currentUser.name}</
+              <p className="text-sm font-bold text-slate-900 leading-none">{currentUser.name}</p>
+              <button onClick={handleLogout} className="text-[10px] font-bold text-slate-400 uppercase hover:text-red-500">Log out</button>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-indigo-100 border-2 border-white shadow-sm overflow-hidden">
+               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`} alt="Avatar" />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+        {!selectedGroupId ? (
+          <SearchGroupsList groups={userGroups} onCreate={createSearchGroup} onSelect={setSelectedGroupId} onDelete={deleteSearchGroup} />
+        ) : selectedProperty ? (
+          <PropertyDetails property={selectedProperty} onUpdate={updateProperty} onBack={() => setSelectedPropertyId(null)} onDelete={() => deleteProperty(selectedProperty.id)} />
+        ) : (
+          <Dashboard properties={projectProperties} onSelect={setSelectedPropertyId} />
+        )}
+      </main>
+
+      {verifyingUrl && (
+        <PropertyVerifier 
+          url={verifyingUrl} 
+          onCancel={() => setVerifyingUrl(null)} 
+          onConfirm={onConfirmProperty} 
+        />
+      )}
+    </div>
+  );
+};
+
+export default App;
