@@ -12,14 +12,24 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   try {
-    // Usamos Jina pero con un timeout y codificación estricta
-    const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
-    const webResponse = await fetch(jinaUrl);
-    const cleanText = await webResponse.text();
+    // 1. CAMBIO: Usamos AllOrigins para obtener el HTML crudo saltando bloqueos
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const webResponse = await fetch(proxyUrl);
+    
+    if (!webResponse.ok) throw new Error("No se pudo acceder a la web");
+    
+    const webData = await webResponse.json();
+    const htmlRaw = webData.contents;
 
-    // Recortamos el texto alrededor de donde suele estar el precio para darle prioridad
-    const contextText = cleanText.substring(0, 10000);
+    // Limpiamos el HTML para dejar solo el texto relevante
+    const cleanText = htmlRaw
+      .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+      .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
+      .replace(/<[^>]*>?/gm, ' ')
+      .replace(/\s+/g, ' ')
+      .substring(0, 15000);
 
+    // 2. Llamada a Gemini
     const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
     const geminiResponse = await fetch(googleApiUrl, {
@@ -28,25 +38,19 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Eres un experto en portales de RE/MAX. Analiza el texto adjunto.
-            
-            INSTRUCCIÓN DE PRECIO:
-            - El precio de venta aparece SIEMPRE después de la palabra "Venta" y ANTES de la palabra "Expensas".
-            - Ignora el valor de las Expensas.
-            - Busca el patrón: Venta [SÍMBOLO MONEDA] [NÚMERO] Expensas.
-            
-            Extrae:
-            1. title: Título de la propiedad.
-            2. price: El valor de venta encontrado entre "Venta" y "Expensas".
-            3. address: Dirección en Argentina.
-            4. sourceName: "RE/MAX"
-            5. lat/lng: Busca coordenadas en el texto o pon 0.
+            text: `Eres un experto extrayendo datos de RE/MAX Argentina. 
+            Busca en el texto:
+            1. PRECIO: Está entre la palabra "Venta" y "Expensas". Suele ser USD seguido de un número.
+            2. DIRECCIÓN: Busca nombres de calles y altura en Capital Federal o Buenos Aires.
+            3. TÍTULO: El nombre de la propiedad.
 
-            Responde exclusivamente este JSON:
-            {"title": "...", "price": "...", "address": "...", "sourceName": "...", "lat": 0, "lng": 0}
+            IMPORTANTE: Si no encuentras el precio entre "Venta" y "Expensas", búscalo en cualquier parte del texto que tenga el símbolo USD o $.
+            
+            Responde SOLO JSON:
+            {"title": "...", "price": "...", "address": "...", "sourceName": "RE/MAX", "lat": 0, "lng": 0}
 
             TEXTO:
-            ${contextText}`
+            ${cleanText}`
           }]
         }]
       })
@@ -58,11 +62,12 @@ export default async function handler(req, res) {
     const aiText = data.candidates[0].content.parts[0].text;
     const jsonMatch = aiText.match(/\{[\s\S]*\}/);
     
-    if (!jsonMatch) throw new Error("Formato de respuesta inválido");
-
     return res.status(200).json(JSON.parse(jsonMatch[0]));
 
   } catch (error) {
-    return res.status(500).json({ error: "Error de extracción", message: error.message });
+    return res.status(500).json({ 
+      error: "Error de lectura profunda", 
+      message: error.message 
+    });
   }
 }
