@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Property, PropertyStatus, User, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
 import Login from './components/Login';
 import SearchGroupsList from './components/SearchGroupsList';
-import { extractPropertyInfo } from './services/geminiService';
+import PropertyVerifier from './components/PropertyVerifier'; // Asegúrate de haber creado este archivo
 
 const STORAGE_KEY_PROPS = 'proptrack_properties';
 const STORAGE_KEY_GROUPS = 'proptrack_groups';
@@ -21,6 +20,9 @@ const App: React.FC = () => {
   
   const [isAdding, setIsAdding] = useState(false);
   const [newUrl, setNewUrl] = useState('');
+  
+  // ESTADO NUEVO: Para controlar el modal de verificación
+  const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
 
   // Initial Load
   useEffect(() => {
@@ -70,38 +72,40 @@ const App: React.FC = () => {
     setSelectedGroupId(null);
   };
 
-  const handleAddProperty = async () => {
+  // CAMBIO AQUÍ: Ahora handleAddProperty solo activa el Verificador
+  const handleAddProperty = () => {
     if (!newUrl || !selectedGroupId) return;
-    setIsAdding(true);
-    try {
-      const info = await extractPropertyInfo(newUrl);
-      const newProp: Property = {
-        id: Math.random().toString(36).substr(2, 9),
-        searchGroupId: selectedGroupId,
-        url: newUrl,
-        title: info.title,
-        price: info.price,
-        address: info.address,
-        lat: info.lat,
-        lng: info.lng,
-        thumbnail: `https://picsum.photos/seed/${Math.random()}/600/400`,
-        sourceName: info.sourceName,
-        favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(newUrl).hostname}`,
-        rating: 0,
-        status: PropertyStatus.INTERESTED,
-        contactName: '',
-        contactPhone: '',
-        comments: '',
-        createdAt: Date.now(),
-      };
-      setAllProperties(prev => [newProp, ...prev]);
-      setNewUrl('');
-      setSelectedPropertyId(newProp.id);
-    } catch (e) {
-      alert("Error extraction info.");
-    } finally {
-      setIsAdding(false);
-    }
+    setVerifyingUrl(newUrl); // Esto abre el modal
+  };
+
+  // NUEVA FUNCIÓN: Se ejecuta cuando confirmas los datos en el modal
+  const onConfirmProperty = (verifiedData: any) => {
+    if (!selectedGroupId) return;
+
+    const newProp: Property = {
+      id: Math.random().toString(36).substr(2, 9),
+      searchGroupId: selectedGroupId,
+      url: verifiedData.url || verifyingUrl || '',
+      title: verifiedData.title || 'Sin título',
+      price: verifiedData.price || 'Consultar',
+      address: verifiedData.address || 'Dirección no especificada',
+      lat: verifiedData.lat || 0,
+      lng: verifiedData.lng || 0,
+      thumbnail: `https://picsum.photos/seed/${Math.random()}/600/400`,
+      sourceName: verifiedData.sourceName || 'Inmobiliaria',
+      favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(verifyingUrl || '').hostname}`,
+      rating: 0,
+      status: PropertyStatus.INTERESTED,
+      contactName: '',
+      contactPhone: '',
+      comments: '',
+      createdAt: Date.now(),
+    };
+
+    setAllProperties(prev => [newProp, ...prev]);
+    setNewUrl('');
+    setVerifyingUrl(null); // Cerramos el modal
+    setSelectedPropertyId(newProp.id);
   };
 
   const updateProperty = (updated: Property) => {
@@ -113,7 +117,6 @@ const App: React.FC = () => {
     setSelectedPropertyId(null);
   };
 
-  // Views logic
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   const userGroups = searchGroups.filter(g => g.userId === currentUser.id);
@@ -123,7 +126,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* Dynamic Header */}
       <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -167,7 +169,7 @@ const App: React.FC = () => {
               <div className="relative">
                 <input 
                   type="text" 
-                  placeholder="Add property to this search..."
+                  placeholder="Paste property URL here..."
                   className="w-full pl-4 pr-32 py-2 bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-full transition-all text-sm outline-none"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
@@ -178,7 +180,7 @@ const App: React.FC = () => {
                   disabled={isAdding || !newUrl}
                   className="absolute right-1 top-1 bottom-1 px-4 bg-indigo-600 text-white text-xs font-bold rounded-full disabled:bg-slate-300"
                 >
-                  {isAdding ? 'ADDING...' : 'ADD'}
+                  ADD
                 </button>
               </div>
             )}
@@ -186,40 +188,4 @@ const App: React.FC = () => {
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-slate-900 leading-none">{currentUser.name}</p>
-              <button onClick={handleLogout} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Log out</button>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-indigo-100 border-2 border-white shadow-sm overflow-hidden">
-               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`} alt="Avatar" />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
-        {!selectedGroupId ? (
-          <SearchGroupsList 
-            groups={userGroups} 
-            onCreate={createSearchGroup} 
-            onSelect={setSelectedGroupId}
-            onDelete={deleteSearchGroup}
-          />
-        ) : selectedProperty ? (
-          <PropertyDetails 
-            property={selectedProperty} 
-            onUpdate={updateProperty} 
-            onBack={() => setSelectedPropertyId(null)}
-            onDelete={() => deleteProperty(selectedProperty.id)}
-          />
-        ) : (
-          <Dashboard 
-            properties={projectProperties} 
-            onSelect={setSelectedPropertyId} 
-          />
-        )}
-      </main>
-    </div>
-  );
-};
-
-export default App;
+              <p className="text-sm font-bold text-slate-900 leading-none">{currentUser.name}</
