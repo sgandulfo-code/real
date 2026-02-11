@@ -12,25 +12,31 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "Falta API Key" });
 
   try {
-    // 1. CAMBIO: Usamos AllOrigins para obtener el HTML crudo saltando bloqueos
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const webResponse = await fetch(proxyUrl);
-    
-    if (!webResponse.ok) throw new Error("No se pudo acceder a la web");
-    
-    const webData = await webResponse.json();
-    const htmlRaw = webData.contents;
+    // 1. Intentamos leer la web con un User-Agent muy común para evitar bloqueos rápidos
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos máximo para leer la web
 
-    // Limpiamos el HTML para dejar solo el texto relevante
-    const cleanText = htmlRaw
+    const webResponse = await fetch(url, { 
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    const htmlText = await webResponse.text();
+
+    // 2. Limpieza ultra-rápida: Extraemos solo lo que parece texto importante
+    // Quitamos scripts, estilos y etiquetas, pero dejamos el contenido
+    const textContext = htmlText
       .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
       .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "")
       .replace(/<[^>]*>?/gm, ' ')
       .replace(/\s+/g, ' ')
-      .substring(0, 15000);
+      .substring(0, 10000); // 10k caracteres es suficiente para RE/MAX
 
-    // 2. Llamada a Gemini
-    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    // 3. Llamada a Gemini con el modelo más rápido
+    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const geminiResponse = await fetch(googleApiUrl, {
       method: 'POST',
@@ -38,25 +44,21 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Eres un experto extrayendo datos de RE/MAX Argentina. 
-            Busca en el texto:
-            1. PRECIO: Está entre la palabra "Venta" y "Expensas". Suele ser USD seguido de un número.
-            2. DIRECCIÓN: Busca nombres de calles y altura en Capital Federal o Buenos Aires.
-            3. TÍTULO: El nombre de la propiedad.
-
-            IMPORTANTE: Si no encuentras el precio entre "Venta" y "Expensas", búscalo en cualquier parte del texto que tenga el símbolo USD o $.
+            text: `Extrae datos de esta web de RE/MAX. 
+            Busca el precio de venta (esta entre 'Venta' y 'Expensas', ej: USD 200.000). 
+            Busca la dirección y el título. 
             
-            Responde SOLO JSON:
+            Responde SOLO este JSON:
             {"title": "...", "price": "...", "address": "...", "sourceName": "RE/MAX", "lat": 0, "lng": 0}
-
-            TEXTO:
-            ${cleanText}`
+            
+            TEXTO: ${textContext}`
           }]
         }]
       })
     });
 
     const data = await geminiResponse.json();
+    
     if (data.error) throw new Error(data.error.message);
 
     const aiText = data.candidates[0].content.parts[0].text;
@@ -65,9 +67,11 @@ export default async function handler(req, res) {
     return res.status(200).json(JSON.parse(jsonMatch[0]));
 
   } catch (error) {
+    console.error("Error:", error.message);
+    // Si falla la lectura directa, devolvemos un error amigable
     return res.status(500).json({ 
-      error: "Error de lectura profunda", 
-      message: error.message 
+      error: "Error de conexión o tiempo excedido", 
+      details: "La web de la inmobiliaria tardó mucho en responder o bloqueó la conexión." 
     });
   }
 }
