@@ -1,8 +1,8 @@
-
 import React, { useState } from 'react';
-import { Property } from '../types';
+import { Property, PropertyStatus } from '../types';
 import PropertyCard from './PropertyCard';
 import ProjectMapView from './ProjectMapView';
+import { Home, Heart, Eye, CheckCircle } from 'lucide-react'; // Importamos iconos para las stats
 
 interface Props {
   properties: Property[];
@@ -13,6 +13,14 @@ type ViewMode = 'grid' | 'map';
 
 const Dashboard: React.FC<Props> = ({ properties, onSelect }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+
+  // Cálculo de estadísticas dinámicas
+  const stats = {
+    total: properties.length,
+    favorites: properties.filter(p => p.rating >= 4).length,
+    interested: properties.filter(p => p.status === PropertyStatus.INTERESTED).length,
+    visited: properties.filter(p => p.status === PropertyStatus.VISITED).length,
+  };
 
   if (properties.length === 0) {
     return (
@@ -29,11 +37,19 @@ const Dashboard: React.FC<Props> = ({ properties, onSelect }) => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* SECCIÓN DE ESTADÍSTICAS REALES */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard icon={<Home className="w-5 h-5" />} label="Total" value={stats.total} color="bg-blue-600" />
+        <StatCard icon={<Heart className="w-5 h-5" />} label="Favoritas" value={stats.favorites} color="bg-rose-500" />
+        <StatCard icon={<Eye className="w-5 h-5" />} label="Interés" value={stats.interested} color="bg-amber-500" />
+        <StatCard icon={<CheckCircle className="w-5 h-5" />} label="Visitadas" value={stats.visited} color="bg-emerald-500" />
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Project Workspace</h2>
-          <p className="text-slate-500">Managing {properties.length} potential homes</p>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Project Workspace</h2>
+          <p className="text-slate-500 font-medium text-sm">Managing {properties.length} potential homes</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -59,13 +75,7 @@ const Dashboard: React.FC<Props> = ({ properties, onSelect }) => {
              <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-100">
                <option>All Statuses</option>
                <option>Interested</option>
-               <option>Contacted</option>
                <option>Visited</option>
-             </select>
-             <select className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-100">
-               <option>Recently Added</option>
-               <option>Highest Rated</option>
-               <option>Price: Low to High</option>
              </select>
           </div>
         </div>
@@ -92,5 +102,16 @@ const Dashboard: React.FC<Props> = ({ properties, onSelect }) => {
     </div>
   );
 };
+
+// Componente para las tarjetas de estadísticas con estilo PropTrack
+const StatCard = ({ icon, label, value, color }: { icon: React.ReactNode, label: string, value: number, color: string }) => (
+  <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm shadow-slate-200/50 flex items-center gap-4 transition-all hover:border-indigo-100">
+    <div className={`${color} text-white p-3 rounded-2xl shadow-lg shadow-slate-100`}>{icon}</div>
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">{label}</p>
+      <p className="text-2xl font-black text-slate-800">{value}</p>
+    </div>
+  </div>
+);
 
 export default Dashboard;
