@@ -83,4 +83,58 @@ const PropertyVerifier = ({ onPropertyAdded, groupId }) => {
         </form>
       ) : (
         <div className="space-y-6 animate-in fade-in zoom-in-95">
-          <div className="flex flex
+          <div className="flex flex-col md:flex-row gap-6">
+            <img 
+              src={suggestedData.thumbnail} 
+              className="w-full md:w-48 h-32 object-cover rounded-2xl" 
+              alt="Preview"
+            />
+            <div className="flex-1 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                  Título Sugerido por IA (Puedes editarlo)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="w-full bg-slate-50 border-2 border-indigo-50 rounded-xl px-4 py-3 font-bold text-slate-700 focus:border-indigo-200 outline-none transition-all pr-10"
+                    value={editableTitle}
+                    onChange={(e) => setEditableTitle(e.target.value)}
+                  />
+                  <Edit3 className="absolute right-3 top-3.5 w-4 h-4 text-slate-300" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Precio</p>
+                  <p className="font-bold text-indigo-600 text-lg">{suggestedData.price}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ubicación</p>
+                  <p className="font-bold text-slate-700">{suggestedData.location}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={handleSave}
+              className="flex-1 bg-emerald-500 text-white font-bold py-4 rounded-2xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+            >
+              <Check className="w-5 h-5" /> Confirmar y Guardar
+            </button>
+            <button
+              onClick={() => setSuggestedData(null)}
+              className="px-6 bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl hover:bg-slate-200 transition-all"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PropertyVerifier;
