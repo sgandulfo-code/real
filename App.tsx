@@ -110,8 +110,28 @@ const App: React.FC = () => {
     }
   };
 
+  // --- FUNCIÓN MEJORADA CON GEOCODIFICACIÓN ---
   const onConfirmProperty = async (verifiedData: any) => {
     if (!selectedGroupId || !verifyingUrl) return;
+
+    let finalLat = verifiedData.lat;
+    let finalLng = verifiedData.lng;
+
+    // Si no tenemos coordenadas reales (usamos el default de BA como señal de que faltan)
+    if (verifiedData.address && (finalLat === -34.6037 || !finalLat)) {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(verifiedData.address + ", Buenos Aires")}&limit=1`
+        );
+        const data = await response.json();
+        if (data && data.length > 0) {
+          finalLat = parseFloat(data[0].lat);
+          finalLng = parseFloat(data[0].lon);
+        }
+      } catch (error) {
+        console.error("Error buscando coordenadas:", error);
+      }
+    }
 
     const aiGeneratedThumb = `https://images.unsplash.com/photo-1580587767526-cf3873950645?q=80&w=800&auto=format&fit=crop`;
     const finalThumbnail = verifiedData.thumbnail || aiGeneratedThumb;
@@ -127,8 +147,8 @@ const App: React.FC = () => {
         bedrooms: verifiedData.bedrooms,
         bathrooms: verifiedData.bathrooms,
         sqft: verifiedData.sqft,
-        lat: verifiedData.lat,
-        lng: verifiedData.lng,
+        lat: finalLat,
+        lng: finalLng,
         source_name: verifiedData.sourceName,
         thumbnail: finalThumbnail,
         status: PropertyStatus.INTERESTED
@@ -137,8 +157,7 @@ const App: React.FC = () => {
     if (!error) {
       setVerifyingUrl(null);
       setNewUrl('');
-      const { data: newProps } = await supabase.from('properties').select('*');
-      if (newProps) window.location.reload(); 
+      window.location.reload(); 
     } else {
       alert("Error al guardar: " + error.message);
     }
@@ -205,7 +224,7 @@ const App: React.FC = () => {
             </>
           ) : (
             <div className="bg-slate-100 px-4 py-1.5 rounded-full border border-slate-200">
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo Lectura</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo Lectura</span>
             </div>
           )}
         </div>
