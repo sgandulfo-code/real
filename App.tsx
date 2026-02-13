@@ -4,7 +4,7 @@ import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
 import Navbar from './components/Navbar';
-import { Building2, Loader2, Plus, Search, Filter } from 'lucide-react';
+import { Building2, Loader2, Search } from 'lucide-react';
 
 // Credenciales de Supabase
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -32,7 +32,6 @@ function App() {
     try {
       setLoading(true);
       
-      // Traer grupos de búsqueda
       const { data: groups, error: groupsError } = await supabase
         .from('search_groups')
         .select('*')
@@ -40,7 +39,6 @@ function App() {
 
       if (groupsError) throw groupsError;
 
-      // Traer todas las propiedades
       const { data: props, error: propsError } = await supabase
         .from('properties')
         .select('*')
@@ -48,10 +46,9 @@ function App() {
 
       if (propsError) throw propsError;
 
-      // Formatear propiedades con los NUEVOS CAMPOS
       const formattedProps: Property[] = props.map(p => ({
         id: p.id,
-        searchGroupId: p.group_id,
+        searchGroupId: p.group_id, // Mapeo correcto desde la DB
         url: p.url,
         title: p.title || 'Propiedad sin título',
         price: p.price || 'Consultar',
@@ -66,14 +63,12 @@ function App() {
         bedrooms: p.bedrooms || 0,
         bathrooms: p.bathrooms || 0,
         sqft: p.sqft || 0,
-        // CAMPOS AGREGADOS PARA TAMARA
         operationType: p.operation_type || 'Venta',
         propertyType: p.property_type || 'Departamento',
         floorNumber: p.floor_number || '',
         m2Covered: p.m2_covered || 0,
         m2Uncovered: p.m2_uncovered || 0,
         expenses: p.expenses || 0,
-        // CAMPOS DE GESTIÓN
         contactName: p.contact_name || '',
         contactPhone: p.contact_phone || '',
         comments: p.comments || '',
@@ -82,7 +77,6 @@ function App() {
         createdAt: new Date(p.created_at).getTime()
       }));
 
-      // Formatear grupos y contar sus propiedades
       const formattedGroups: SearchGroup[] = groups.map(g => ({
         id: g.id,
         name: g.name,
@@ -106,15 +100,16 @@ function App() {
     }
   };
 
-  // --- 2. LÓGICA DE ACTUALIZACIÓN (SINCRONIZADA) ---
+  // --- 2. LÓGICA DE ACTUALIZACIÓN CORREGIDA ---
   const handleUpdateProperty = async (updatedProp: Property) => {
-    // 1. Update visual instantáneo (Optimistic UI)
+    // Sincronización local inmediata
     setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
     
-    // 2. Persistencia en base de datos
+    // Persistencia en Supabase
     const { error } = await supabase
       .from('properties')
       .update({
+        group_id: updatedProp.searchGroupId, // <-- CORRECCIÓN: Asegura el ID del grupo
         title: updatedProp.title,
         price: updatedProp.price,
         address: updatedProp.address,
@@ -125,7 +120,6 @@ function App() {
         contact_phone: updatedProp.contactPhone,
         next_visit: updatedProp.nextVisit,
         is_favorite: updatedProp.isFavorite,
-        // MAPEO DE CAMPOS NUEVOS A COLUMNAS SQL
         operation_type: updatedProp.operationType,
         property_type: updatedProp.propertyType,
         floor_number: updatedProp.floorNumber,
@@ -135,7 +129,11 @@ function App() {
       })
       .eq('id', updatedProp.id);
 
-    if (error) console.error("Error al sincronizar con Supabase:", error.message);
+    if (error) {
+      console.error("Error al sincronizar con Supabase:", error.message);
+      // Opcional: Recargar datos si hay error para revertir cambios locales
+      // loadSupabaseData(); 
+    }
   };
 
   // --- 3. ELIMINACIÓN ---
@@ -158,7 +156,6 @@ function App() {
     });
   }, [allProperties, activeGroupId, searchTerm, statusFilter]);
 
-  // --- UI RENDER ---
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -191,7 +188,6 @@ function App() {
           />
         ) : (
           <div className="space-y-8">
-            {/* Header del Dashboard con Buscador */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-black text-slate-900">
@@ -212,7 +208,7 @@ function App() {
                   />
                 </div>
                 <select 
-                  className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-600 outline-none"
+                  className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-600 outline-none cursor-pointer"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
                 >
@@ -222,7 +218,6 @@ function App() {
               </div>
             </div>
 
-            {/* Grilla de Contenido */}
             {filteredProperties.length > 0 ? (
               <Dashboard 
                 activeGroup={searchGroups.find(g => g.id === activeGroupId)!}
