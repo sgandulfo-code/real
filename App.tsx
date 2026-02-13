@@ -95,11 +95,9 @@ const App: React.FC = () => {
     }
   };
 
-  // PUNTO 1: LÓGICA DE CONFIRMACIÓN CON IMAGEN DINÁMICA
   const onConfirmProperty = async (verifiedData: any) => {
     if (!selectedGroupId || !verifyingUrl) return;
 
-    // Si no hay imagen real, generamos una basada en el contexto del título
     const aiGeneratedThumb = `https://images.unsplash.com/photo-1580587767526-cf3873950645?q=80&w=800&auto=format&fit=crop`;
     const finalThumbnail = verifiedData.thumbnail || aiGeneratedThumb;
 
@@ -124,7 +122,6 @@ const App: React.FC = () => {
     if (!error) {
       setVerifyingUrl(null);
       setNewUrl('');
-      // Recarga suave para mostrar la nueva card
       const { data: newProps } = await supabase.from('properties').select('*');
       if (newProps) window.location.reload(); 
     } else {
@@ -188,6 +185,7 @@ const App: React.FC = () => {
         {!selectedGroupId ? (
           <SearchGroupsList 
             groups={searchGroups} 
+            allProperties={allProperties}
             onCreate={createSearchGroup} 
             onSelect={setSelectedGroupId} 
             onDelete={(id) => supabase.from('search_groups').delete().eq('id', id).then(() => window.location.reload())} 
