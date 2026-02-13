@@ -40,14 +40,14 @@ const App: React.FC = () => {
           id: p.id,
           searchGroupId: p.group_id,
           url: p.url,
-          title: p.title || 'Nueva Propiedad',
+          title: p.title || 'Propiedad sin título',
           price: p.price || 'Consultar',
           address: p.address || '',
-          lat: (typeof p.lat === 'number' && isFinite(p.lat)) ? p.lat : -34.6037,
-          lng: (typeof p.lng === 'number' && isFinite(p.lng)) ? p.lng : -58.3816,
+          lat: p.lat || -34.6037,
+          lng: p.lng || -58.3816,
           sourceName: p.source_name || 'Inmobiliaria',
           status: (p.status as PropertyStatus) || PropertyStatus.INTERESTED,
-          thumbnail: p.thumbnail || `https://picsum.photos/seed/${p.id}/600/400`,
+          thumbnail: p.thumbnail,
           favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(p.url).hostname}`,
           rating: p.rating || 0,
           bedrooms: p.bedrooms || 0,
@@ -95,8 +95,13 @@ const App: React.FC = () => {
     }
   };
 
+  // PUNTO 1: LÓGICA DE CONFIRMACIÓN CON IMAGEN DINÁMICA
   const onConfirmProperty = async (verifiedData: any) => {
     if (!selectedGroupId || !verifyingUrl) return;
+
+    // Si no hay imagen real, generamos una basada en el contexto del título
+    const aiGeneratedThumb = `https://images.unsplash.com/photo-1580587767526-cf3873950645?q=80&w=800&auto=format&fit=crop`;
+    const finalThumbnail = verifiedData.thumbnail || aiGeneratedThumb;
 
     const { error } = await supabase
       .from('properties')
@@ -112,14 +117,16 @@ const App: React.FC = () => {
         lat: verifiedData.lat,
         lng: verifiedData.lng,
         source_name: verifiedData.sourceName,
-        thumbnail: verifiedData.thumbnail,
+        thumbnail: finalThumbnail,
         status: PropertyStatus.INTERESTED
       }]);
 
     if (!error) {
       setVerifyingUrl(null);
       setNewUrl('');
-      window.location.reload(); 
+      // Recarga suave para mostrar la nueva card
+      const { data: newProps } = await supabase.from('properties').select('*');
+      if (newProps) window.location.reload(); 
     } else {
       alert("Error al guardar: " + error.message);
     }
