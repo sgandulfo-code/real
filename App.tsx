@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'; // Cambiado a js para que coincida con tu package.json
 import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
-import Navbar from './components/Navbar';
+import SearchGroupsList from './components/SearchGroupsList'; 
 import { Building2, Loader2, Search } from 'lucide-react';
 
 // Credenciales de Supabase
