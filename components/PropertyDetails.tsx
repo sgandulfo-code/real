@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Property, PropertyStatus } from '../types';
 import { 
   ArrowLeft, Heart, Share2, Trash2, ExternalLink, 
@@ -14,29 +14,44 @@ interface Props {
 }
 
 const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete }) => {
-  // Estado local para evitar lag al escribir y sincronizar con la UI
+  // 1. Estado local para que Tamara escriba sin lag
   const [localProp, setLocalProp] = useState<Property>(property);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  
+  // Ref para no guardar nada apenas se abre la pantalla
+  const isFirstRender = useRef(true);
 
-  // Sincronizar si la prop cambia externamente (desde Supabase, por ejemplo)
+  // Sincronizar si entramos a una propiedad diferente
   useEffect(() => {
     setLocalProp(property);
-  }, [property]);
+    isFirstRender.current = true; // Reiniciamos el control al cambiar de propiedad
+  }, [property.id]);
+
+  // 2. LÓGICA DE GUARDADO INTELIGENTE (Debounce)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Espera 1 segundo después de dejar de escribir para mandar a Supabase
+    const timer = setTimeout(() => {
+      onUpdate(localProp);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [localProp]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    const updated = { ...localProp, [name]: value };
-    setLocalProp(updated);
-    onUpdate(updated);
+    // Esto actualiza la pantalla al instante, el cursor NO se mueve
+    setLocalProp(prev => ({ ...prev, [name]: value }));
   };
 
   const toggleFavorite = () => {
-    // Nota: Asegúrate de que 'isFavorite' exista en tu tipo Property
-    const updated = { ...localProp, isFavorite: !localProp.isFavorite };
-    setLocalProp(updated);
-    onUpdate(updated);
+    setLocalProp(prev => ({ ...prev, isFavorite: !prev.isFavorite }));
   };
 
   const copyLink = () => {
@@ -54,7 +69,7 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
             className={`w-5 h-5 cursor-pointer transition-colors ${
               star <= (rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
             }`}
-            onClick={() => onUpdate({ ...localProp, rating: star })}
+            onClick={() => setLocalProp(prev => ({ ...prev, rating: star }))}
           />
         ))}
       </div>
@@ -66,10 +81,7 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
       
       {/* Header de Navegación */}
       <div className="flex items-center justify-between bg-white/50 p-4 rounded-3xl backdrop-blur-sm border border-white shadow-sm">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-all font-bold group"
-        >
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-all font-bold group">
           <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
             <ArrowLeft className="w-5 h-5" />
           </div>
@@ -83,17 +95,11 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
           >
             <Heart className={`w-5 h-5 ${localProp.isFavorite ? 'fill-current' : ''}`} />
           </button>
-          <button 
-            onClick={() => setShowShareModal(true)}
-            className="p-3 bg-white text-slate-300 hover:text-indigo-600 rounded-2xl shadow-sm transition-all"
-          >
+          <button onClick={() => setShowShareModal(true)} className="p-3 bg-white text-slate-300 hover:text-indigo-600 rounded-2xl shadow-sm transition-all">
             <Share2 className="w-5 h-5" />
           </button>
           <div className="w-px h-8 bg-slate-200 mx-2" />
-          <button 
-            onClick={() => setShowDeleteModal(true)}
-            className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
-          >
+          <button onClick={() => setShowDeleteModal(true)} className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all">
             <Trash2 className="w-5 h-5" />
           </button>
         </div>
@@ -101,7 +107,6 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Columna Principal: Imagen, Título y Notas */}
         <div className="lg:col-span-2 space-y-8">
           <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
             <div className="aspect-video relative group">
@@ -118,10 +123,9 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
                 <div className="flex-1 space-y-2">
                   <input 
                     name="title" 
-                    className="w-full text-4xl font-black text-slate-900 border-none p-0 focus:ring-0 outline-none placeholder:text-slate-200 bg-transparent"
+                    className="w-full text-4xl font-black text-slate-900 border-none p-0 focus:ring-0 outline-none bg-transparent"
                     value={localProp.title}
                     onChange={handleChange}
-                    placeholder="Título de la propiedad"
                   />
                   <div className="flex items-center gap-2 text-slate-400 font-medium">
                     <MapPin className="w-4 h-4 text-indigo-500" />
@@ -130,7 +134,6 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
                       className="w-full border-none p-0 focus:ring-0 outline-none text-lg bg-transparent"
                       value={localProp.address}
                       onChange={handleChange}
-                      placeholder="Dirección completa"
                     />
                   </div>
                 </div>
@@ -144,24 +147,17 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
                 </div>
               </div>
 
-              {/* Valoración Personal */}
               <div className="flex items-center gap-6 py-6 border-y border-slate-50 mb-8">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Tu Valoración</label>
                   {renderStars(localProp.rating || 0)}
                 </div>
                 <div className="w-px h-10 bg-slate-100" />
-                <a 
-                  href={localProp.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-indigo-600 font-bold hover:underline"
-                >
+                <a href={localProp.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-indigo-600 font-bold hover:underline">
                   Link Original <ExternalLink className="w-4 h-4" />
                 </a>
               </div>
 
-              {/* Área de Comentarios */}
               <div className="space-y-4">
                 <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                   <MessageSquare className="w-3 h-3" /> Notas y Observaciones
@@ -170,7 +166,7 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
                   name="comments"
                   rows={5}
                   className="w-full bg-slate-50 border-none rounded-3xl p-6 text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none transition-all text-lg"
-                  placeholder="¿Qué te pareció el barrio? ¿Viste alguna humedad? ¿Es ruidoso?"
+                  placeholder="¿Qué te pareció el barrio?..."
                   value={localProp.comments || ''}
                   onChange={handleChange}
                 />
@@ -178,7 +174,7 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
             </div>
           </div>
 
-          {/* Estrategia de Visita (Tips) */}
+          {/* Estrategia de Visita (Tu diseño favorito) */}
           <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
@@ -188,7 +184,6 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
                 <h3 className="text-2xl font-black">Estrategia de Visita</h3>
               </div>
               <p className="text-slate-400 mb-8 font-medium">Recomendaciones sugeridas para tu próxima inspección.</p>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {['Revisar presión de agua', 'Consultar por expensas', 'Ver orientación del sol', 'Preguntar por cochera'].map((tip, i) => (
                   <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -201,20 +196,15 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
           </div>
         </div>
 
-        {/* Columna Lateral: Gestión de Estado y Visitas */}
+        {/* Sidebar Gestión */}
         <div className="space-y-6">
           <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-8 sticky top-24">
             <h3 className="font-black text-slate-900 text-xl flex items-center gap-2">Gestión</h3>
 
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado del Proceso</label>
-                <select 
-                  name="status"
-                  className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none appearance-none cursor-pointer"
-                  value={localProp.status}
-                  onChange={handleChange}
-                >
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</label>
+                <select name="status" className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" value={localProp.status} onChange={handleChange}>
                   {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -223,75 +213,41 @@ const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próxima Visita</label>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    name="nextVisit"
-                    type="datetime-local"
-                    className="w-full bg-slate-100 border-none rounded-2xl pl-12 pr-5 py-4 font-bold text-slate-700 outline-none"
-                    value={localProp.nextVisit || ''}
-                    onChange={handleChange}
-                  />
+                  <input name="nextVisit" type="datetime-local" className="w-full bg-slate-100 border-none rounded-2xl pl-12 pr-5 py-4 font-bold text-slate-700 outline-none" value={localProp.nextVisit || ''} onChange={handleChange} />
                 </div>
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-50 space-y-4">
-               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacto del Agente</label>
-               <input 
-                 name="contactName"
-                 className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none"
-                 placeholder="Nombre del Agente"
-                 value={localProp.contactName || ''}
-                 onChange={handleChange}
-               />
-               <input 
-                 name="contactPhone"
-                 className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none"
-                 placeholder="WhatsApp / Tel"
-                 value={localProp.contactPhone || ''}
-                 onChange={handleChange}
-               />
-               <a 
-                 href={`tel:${localProp.contactPhone}`}
-                 className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 text-center"
-               >
-                 <Phone className="w-5 h-5" /> Llamar ahora
-               </a>
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacto Agente</label>
+               <input name="contactName" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" placeholder="Nombre" value={localProp.contactName || ''} onChange={handleChange} />
+               <input name="contactPhone" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" placeholder="Teléfono" value={localProp.contactPhone || ''} onChange={handleChange} />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal: Compartir */}
+      {/* Modales */}
       {showShareModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl text-center">
-              <h3 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">Compartir</h3>
-              <div className="grid grid-cols-1 gap-3">
-                 <button onClick={copyLink} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl font-bold hover:bg-indigo-50 hover:text-indigo-600 transition-all">
-                    <div className="flex items-center gap-3">
-                      <Copy className="w-5 h-5" /> Copiar Link
-                    </div>
-                    {copyFeedback && <span className="text-[10px] text-indigo-600 animate-pulse">¡COPIADO!</span>}
-                 </button>
-                 <button onClick={() => setShowShareModal(false)} className="mt-4 text-slate-400 font-bold py-2 hover:text-slate-600">Cerrar</button>
-              </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center animate-in zoom-in-95">
+              <h3 className="text-2xl font-black mb-6">Compartir</h3>
+              <button onClick={copyLink} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl font-bold">
+                <div className="flex items-center gap-3"><Copy className="w-5 h-5" /> Copiar Link</div>
+                {copyFeedback && <span className="text-[10px] text-indigo-600">¡COPIADO!</span>}
+              </button>
+              <button onClick={() => setShowShareModal(false)} className="mt-4 text-slate-400 font-bold">Cerrar</button>
            </div>
         </div>
       )}
 
-      {/* Modal: Eliminar */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl text-center">
-              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                 <Trash2 className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-black text-slate-900 mb-2">¿Eliminar propiedad?</h3>
-              <p className="text-slate-500 mb-8 font-medium text-sm">Esta acción eliminará la ficha de tu proyecto permanentemente.</p>
-              <div className="flex flex-col gap-3">
-                 <button onClick={onDelete} className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-200 hover:bg-red-600">Eliminar</button>
-                 <button onClick={() => setShowDeleteModal(false)} className="w-full py-4 text-slate-400 font-bold hover:bg-slate-50 rounded-2xl transition-colors">Cancelar</button>
-              </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 text-center animate-in zoom-in-95">
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="w-8 h-8" /></div>
+              <h3 className="text-xl font-black mb-6">¿Eliminar propiedad?</h3>
+              <button onClick={onDelete} className="w-full bg-red-500 text-white py-4 rounded-2xl font-black mb-2">Eliminar</button>
+              <button onClick={() => setShowDeleteModal(false)} className="w-full py-4 text-slate-400 font-bold">Cancelar</button>
            </div>
         </div>
       )}
