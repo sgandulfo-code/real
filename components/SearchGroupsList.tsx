@@ -1,7 +1,6 @@
 import React from 'react';
-import { Folder, ChevronRight, Plus, Building2, Home } from 'lucide-react';
+import { Folder, ChevronRight, Plus, Building2, Home, Share2 } from 'lucide-react';
 
-// Añadimos 'allProperties' a las props para poder contar
 export default function SearchGroupsList({ groups, allProperties, onCreate, onSelect }: any) {
 
   const formatDate = (dateString: string) => {
@@ -12,7 +11,6 @@ export default function SearchGroupsList({ groups, allProperties, onCreate, onSe
     } catch (e) { return 'Reciente'; }
   };
 
-  // Función para contar cuántas propiedades tiene este grupo específico
   const getPropertyCount = (groupId: string) => {
     return allProperties?.filter((p: any) => p.searchGroupId === groupId).length || 0;
   };
@@ -20,6 +18,18 @@ export default function SearchGroupsList({ groups, allProperties, onCreate, onSe
   const handleCreateNew = () => {
     const name = prompt("Nombre del proyecto:");
     if (name) onCreate(name, "");
+  };
+
+  // Función para compartir por WhatsApp
+  const shareByWhatsApp = (e: React.MouseEvent, group: any) => {
+    e.stopPropagation(); // Evita que se abra el proyecto al hacer clic en compartir
+    
+    const baseUrl = "https://real-sigma-two.vercel.app";
+    const shareUrl = `${baseUrl}/?project=${group.id}`;
+    const message = `¡Hola! Te comparto el acceso al proyecto de propiedades "${group.name}" en PropTrack AI: ${shareUrl}`;
+    
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   return (
@@ -61,13 +71,26 @@ export default function SearchGroupsList({ groups, allProperties, onCreate, onSe
               onClick={() => onSelect(group.id)} 
               className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.12)] transition-all duration-500 cursor-pointer hover:-translate-y-2 relative flex flex-col"
             >
-              {/* Top: Icono y Fecha */}
+              {/* Top: Icono y Acciones Rápidas */}
               <div className="p-8 pb-4 flex justify-between items-start">
                 <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 transition-colors duration-500 shadow-sm">
                   <Folder className="w-7 h-7 text-slate-400 group-hover:text-white transition-colors" />
                 </div>
-                <div className="bg-slate-900/5 backdrop-blur-md text-slate-500 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border border-slate-100">
-                  {formatDate(group.created_at)}
+                
+                <div className="flex gap-2">
+                  {/* BOTÓN WHATSAPP: Estilo cápsula moderna */}
+                  <button 
+                    onClick={(e) => shareByWhatsApp(e, group)}
+                    className="bg-green-50 text-green-600 p-2.5 rounded-xl hover:bg-green-600 hover:text-white transition-all duration-300 border border-green-100 flex items-center gap-2"
+                    title="Compartir por WhatsApp"
+                  >
+                    <Share2 size={16} />
+                    <span className="text-[10px] font-extrabold uppercase pr-1">Compartir</span>
+                  </button>
+                  
+                  <div className="bg-slate-900/5 backdrop-blur-md text-slate-500 text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border border-slate-100 flex items-center">
+                    {formatDate(group.created_at)}
+                  </div>
                 </div>
               </div>
 
@@ -81,11 +104,10 @@ export default function SearchGroupsList({ groups, allProperties, onCreate, onSe
                 </p>
               </div>
 
-              {/* Footer: Métricas (Igual a tu captura de propiedades) */}
+              {/* Footer: Métricas */}
               <div className="p-7 pt-0">
                 <div className="flex items-center justify-between border-t border-slate-50 pt-6">
                   <div className="flex items-center gap-5">
-                    {/* Contador de Propiedades */}
                     <div className="flex flex-col">
                       <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Contenido</span>
                       <div className="flex items-center gap-2">
@@ -97,7 +119,7 @@ export default function SearchGroupsList({ groups, allProperties, onCreate, onSe
                     </div>
                   </div>
 
-                  {/* Botón Acción */}
+                  {/* Botón Acción Entrar */}
                   <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm shadow-indigo-100 group-hover:shadow-indigo-200">
                     <ChevronRight className="w-6 h-6" />
                   </div>
