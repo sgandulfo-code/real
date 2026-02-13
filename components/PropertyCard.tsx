@@ -25,7 +25,7 @@ const PropertyCard: React.FC<Props> = ({ property, onClick, onUpdate }) => {
             e.stopPropagation();
             onUpdate({...property, isFavorite: !property.isFavorite});
           }}
-          className={`absolute bottom-4 right-4 p-2 rounded-xl backdrop-blur-md border border-white/20 transition-all ${property.isFavorite ? 'bg-pink-500 text-white shadow-lg' : 'bg-white/80 text-slate-400 hover:text-pink-500'}`}
+          className={`absolute bottom-4 right-4 p-2 rounded-xl backdrop-blur-md border border-white/20 transition-all ${property.isFavorite ? 'bg-pink-500 text-white' : 'bg-white/80 text-slate-400 hover:text-pink-500'}`}
         >
           <Heart className={`w-4 h-4 ${property.isFavorite ? 'fill-current' : ''}`} />
         </button>
