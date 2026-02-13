@@ -1,301 +1,227 @@
-import React, { useState, useEffect } from 'react';
-import { Property, PropertyStatus, User, SearchGroup } from './types';
-import Dashboard from './components/Dashboard';
-import PropertyDetails from './components/PropertyDetails';
-import Login from './components/Login';
-import SearchGroupsList from './components/SearchGroupsList';
-import PropertyVerifier from './components/PropertyVerifier';
-import { supabase } from './lib/supabase';
+import React, { useState, useEffect, useRef } from 'react';
+import { Property, PropertyStatus } from '../types';
+import { 
+  ArrowLeft, Heart, Share2, Trash2, ExternalLink, 
+  MapPin, Star, MessageSquare, Phone, Calendar, 
+  Zap, Check, Copy, Save
+} from 'lucide-react';
 
-const STORAGE_KEY_USER = 'proptrack_current_user';
+interface Props {
+  property: Property;
+  onUpdate: (property: Property) => void;
+  onBack: () => void;
+  onDelete: () => void;
+}
 
-const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
-  const [allProperties, setAllProperties] = useState<Property[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  const [newUrl, setNewUrl] = useState('');
-  const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
+const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete }) => {
+  // Estado local para que Tamara escriba fluido
+  const [localProp, setLocalProp] = useState<Property>(property);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  
+  // Referencia para evitar el guardado automático al entrar a la pantalla
+  const skipFirstRender = useRef(true);
 
+  // Si cambiamos de propiedad, reseteamos el estado local
   useEffect(() => {
-    const savedUser = localStorage.getItem(STORAGE_KEY_USER);
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
+    setLocalProp(property);
+    skipFirstRender.current = true;
+  }, [property.id]);
 
-    const params = new URLSearchParams(window.location.search);
-    const projectId = params.get('project');
-    if (projectId) setSelectedGroupId(projectId);
-  }, []);
-
+  // DEBOUNCE: Solo guarda en Supabase 1 segundo después de dejar de escribir
   useEffect(() => {
-    const loadSupabaseData = async () => {
-      if (currentUser) {
-        const { data: groups } = await supabase
-          .from('search_groups')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: false });
-        if (groups) setSearchGroups(groups);
-      }
-
-      const { data: props } = await supabase.from('properties').select('*');
-      if (props) {
-        const formattedProps: Property[] = props.map(p => ({
-          id: p.id,
-          searchGroupId: p.group_id,
-          url: p.url,
-          title: p.title || 'Propiedad sin título',
-          price: p.price || 'Consultar',
-          address: p.address || '',
-          lat: p.lat || -34.6037,
-          lng: p.lng || -58.3816,
-          sourceName: p.source_name || 'Inmobiliaria',
-          status: (p.status as PropertyStatus) || PropertyStatus.INTERESTED,
-          thumbnail: p.thumbnail,
-          favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(p.url).hostname}`,
-          rating: p.rating || 0,
-          bedrooms: p.bedrooms || 0,
-          bathrooms: p.bathrooms || 0,
-          sqft: p.sqft || 0,
-          contactName: p.contact_name || '',
-          contactPhone: p.contact_phone || '',
-          comments: p.comments || '',
-          nextVisit: p.next_visit || '',
-          isFavorite: p.is_favorite || false,
-          createdAt: new Date(p.created_at).getTime()
-        }));
-        setAllProperties(formattedProps);
-        
-        const params = new URLSearchParams(window.location.search);
-        const projectId = params.get('project');
-        if (projectId && !currentUser) {
-          const { data: sharedGroup } = await supabase
-            .from('search_groups')
-            .select('*')
-            .eq('id', projectId)
-            .single();
-          if (sharedGroup) setSearchGroups([sharedGroup]);
-        }
-      }
-    };
-    loadSupabaseData();
-  }, [currentUser]);
-
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY_USER);
-    window.location.reload();
-  };
-
-  const createSearchGroup = async (name: string, description: string) => {
-    if (!currentUser) return;
-    const { data } = await supabase
-      .from('search_groups')
-      .insert([{ user_id: currentUser.id, name, description }])
-      .select();
-    if (data) setSearchGroups(prev => [data[0], ...prev]);
-  };
-
-  const updateGroupName = async (newName: string) => {
-    if (!selectedGroupId) return;
-    const { error } = await supabase
-      .from('search_groups')
-      .update({ name: newName })
-      .eq('id', selectedGroupId);
-
-    if (!error) {
-      setSearchGroups(prev => prev.map(g => g.id === selectedGroupId ? { ...g, name: newName } : g));
-    }
-  };
-
-  const onConfirmProperty = async (verifiedData: any) => {
-    if (!selectedGroupId || !verifyingUrl) return;
-
-    let finalLat = verifiedData.lat;
-    let finalLng = verifiedData.lng;
-
-    if (verifiedData.address && (finalLat === -34.6037 || !finalLat)) {
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(verifiedData.address + ", Buenos Aires")}&limit=1`
-        );
-        const data = await response.json();
-        if (data && data.length > 0) {
-          finalLat = parseFloat(data[0].lat);
-          finalLng = parseFloat(data[0].lon);
-        }
-      } catch (error) {
-        console.error("Error buscando coordenadas:", error);
-      }
+    if (skipFirstRender.current) {
+      skipFirstRender.current = false;
+      return;
     }
 
-    const aiGeneratedThumb = `https://images.unsplash.com/photo-1580587767526-cf3873950645?q=80&w=800&auto=format&fit=crop`;
-    const finalThumbnail = verifiedData.thumbnail || aiGeneratedThumb;
+    setIsSaving(true);
+    const timer = setTimeout(() => {
+      onUpdate(localProp);
+      setIsSaving(false);
+    }, 1000); 
 
-    const { error } = await supabase
-      .from('properties')
-      .insert([{
-        group_id: selectedGroupId,
-        url: verifyingUrl,
-        title: verifiedData.title,
-        price: verifiedData.price,
-        address: verifiedData.address,
-        bedrooms: verifiedData.bedrooms,
-        bathrooms: verifiedData.bathrooms,
-        sqft: verifiedData.sqft,
-        lat: finalLat,
-        lng: finalLng,
-        source_name: verifiedData.sourceName,
-        thumbnail: finalThumbnail,
-        status: PropertyStatus.INTERESTED
-      }]);
+    return () => clearTimeout(timer);
+  }, [localProp, onUpdate]);
 
-    if (!error) {
-      setVerifyingUrl(null);
-      setNewUrl('');
-      window.location.reload(); 
-    } else {
-      alert("Error al guardar: " + error.message);
-    }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setLocalProp(prev => ({ ...prev, [name]: value }));
   };
 
-  // NUEVA FUNCIÓN: Actualiza Supabase sin cerrar la vista
-  const handleUpdateProperty = async (updatedProp: Property) => {
-    // Actualización inmediata en UI
-    setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
-
-    // Persistencia silenciosa en Supabase
-    const { error } = await supabase
-      .from('properties')
-      .update({
-        title: updatedProp.title,
-        price: updatedProp.price,
-        address: updatedProp.address,
-        comments: updatedProp.comments,
-        rating: updatedProp.rating,
-        status: updatedProp.status,
-        contact_name: updatedProp.contactName,
-        contact_phone: updatedProp.contactPhone,
-        next_visit: updatedProp.nextVisit,
-        is_favorite: updatedProp.isFavorite
-      })
-      .eq('id', updatedProp.id);
-
-    if (error) console.error("Error al sincronizar con Supabase:", error.message);
+  const toggleFavorite = () => {
+    setLocalProp(prev => ({ ...prev, isFavorite: !prev.isFavorite }));
   };
 
-  const params = new URLSearchParams(window.location.search);
-  const isSharedView = params.get('project');
-
-  if (!currentUser && !isSharedView) return <Login onLogin={handleLogin} />;
-
-  const selectedGroup = searchGroups.find(g => g.id === selectedGroupId);
-  const projectProperties = allProperties.filter(p => p.searchGroupId === selectedGroupId);
-  const selectedProperty = allProperties.find(p => p.id === selectedPropertyId);
+  const copyLink = () => {
+    navigator.clipboard.writeText(localProp.url);
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 2000);
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
-      <header className="h-16 border-b bg-white/80 backdrop-blur-md flex items-center px-6 justify-between sticky top-0 z-50">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      
+      {/* Header con Indicador de Guardado */}
+      <div className="flex items-center justify-between bg-white/50 p-4 rounded-3xl backdrop-blur-sm border border-white shadow-sm">
         <div className="flex items-center gap-4">
-          <div 
-            className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white cursor-pointer shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all" 
-            onClick={() => { 
-              window.history.pushState({}, '', window.location.pathname);
-              setSelectedGroupId(null); 
-              setSelectedPropertyId(null); 
-            }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
+          <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-all font-bold group">
+            <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
+              <ArrowLeft className="w-5 h-5" />
+            </div>
+            Volver
+          </button>
+          
+          {/* Nube de guardado (Feedback visual para Tamara) */}
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase transition-all ${isSaving ? 'text-amber-500 bg-amber-50 animate-pulse' : 'text-emerald-500 bg-emerald-50'}`}>
+            <Save className="w-3 h-3" />
+            {isSaving ? 'Guardando...' : 'Sincronizado'}
           </div>
-          <h1 className="font-bold text-slate-800 text-xl tracking-tight">PropTrack AI</h1>
         </div>
-        
-        {currentUser && selectedGroupId && !selectedPropertyId && (
-          <div className="flex-1 max-w-xl px-10">
-            <div className="relative group">
-              <input 
-                type="text" 
-                placeholder="Pegar link de propiedad..." 
-                className="w-full pl-5 pr-36 py-2.5 bg-slate-100 border-transparent rounded-full text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" 
-                value={newUrl} 
-                onChange={(e) => setNewUrl(e.target.value)} 
-              />
-              <button 
-                onClick={() => setVerifyingUrl(newUrl)} 
-                className="absolute right-1 top-1 bottom-1 px-6 bg-indigo-600 text-white text-xs font-bold rounded-full hover:bg-indigo-700 transition-colors shadow-md"
-              >
-                AGREGAR
+
+        <div className="flex items-center gap-2">
+          <button onClick={toggleFavorite} className={`p-3 rounded-2xl transition-all ${localProp.isFavorite ? 'bg-pink-50 text-pink-500' : 'bg-white text-slate-300 shadow-sm'}`}>
+            <Heart className={`w-5 h-5 ${localProp.isFavorite ? 'fill-current' : ''}`} />
+          </button>
+          <button onClick={() => setShowShareModal(true)} className="p-3 bg-white text-slate-300 rounded-2xl shadow-sm hover:text-indigo-600"><Share2 className="w-5 h-5" /></button>
+          <div className="w-px h-8 bg-slate-200 mx-2" />
+          <button onClick={() => setShowDeleteModal(true)} className="p-3 text-slate-300 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
+            <div className="aspect-video relative overflow-hidden">
+              <img src={localProp.thumbnail} className="w-full h-full object-cover" alt="Prop" />
+              <div className="absolute top-6 left-6 bg-white/95 px-4 py-2 rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest text-slate-700">
+                {localProp.sourceName}
+              </div>
+            </div>
+
+            <div className="p-10">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
+                <div className="flex-1 space-y-2">
+                  <input name="title" className="w-full text-4xl font-black text-slate-900 border-none p-0 focus:ring-0 outline-none bg-transparent" value={localProp.title} onChange={handleChange} />
+                  <div className="flex items-center gap-2 text-slate-400 font-medium">
+                    <MapPin className="w-4 h-4 text-indigo-500" />
+                    <input name="address" className="w-full border-none p-0 focus:ring-0 outline-none text-lg bg-transparent" value={localProp.address} onChange={handleChange} />
+                  </div>
+                </div>
+                <div className="bg-indigo-50 px-6 py-4 rounded-[2rem]">
+                  <input name="price" className="text-3xl font-black text-indigo-600 border-none p-0 focus:ring-0 outline-none text-right bg-transparent w-40" value={localProp.price} onChange={handleChange} />
+                </div>
+              </div>
+
+              {/* Valoración */}
+              <div className="flex items-center gap-6 py-6 border-y border-slate-50 mb-8">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Tu Valoración</label>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star key={star} onClick={() => setLocalProp(p => ({...p, rating: star}))} className={`w-5 h-5 cursor-pointer ${star <= (localProp.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+                    ))}
+                  </div>
+                </div>
+                <div className="w-px h-10 bg-slate-100" />
+                <a href={localProp.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 font-bold hover:underline">Link Original <ExternalLink className="w-4 h-4" /></a>
+              </div>
+
+              {/* TEXTAREA DE NOTAS (El que fallaba) */}
+              <div className="space-y-4">
+                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  <MessageSquare className="w-3 h-3" /> Notas y Observaciones
+                </label>
+                <textarea 
+                  name="comments"
+                  rows={6}
+                  className="w-full bg-slate-50 border-none rounded-3xl p-6 text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none transition-all text-lg"
+                  placeholder="Escribe tus notas aquí..."
+                  value={localProp.comments || ''}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Estrategia de Visita (Tu diseño favorito) */}
+          <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/50">
+                  <Zap className="w-6 h-6 fill-current" />
+                </div>
+                <h3 className="text-2xl font-black">Estrategia de Visita</h3>
+              </div>
+              <p className="text-slate-400 mb-8 font-medium">Puntos clave para revisar en este departamento.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {['Presión de agua y cañerías', 'Estado de aberturas', 'Humedad en techos', 'Ruido del entorno'].map((tip, i) => (
+                  <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 text-sm font-bold">
+                    <Check className="w-5 h-5 text-indigo-400 shrink-0" /> {tip}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar de Gestión */}
+        <div className="space-y-6">
+          <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-8 sticky top-24">
+            <h3 className="font-black text-slate-900 text-xl">Gestión</h3>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</label>
+                <select name="status" className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none cursor-pointer" value={localProp.status} onChange={handleChange}>
+                  {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próxima Visita</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input name="nextVisit" type="datetime-local" className="w-full bg-slate-100 border-none rounded-2xl pl-12 pr-5 py-4 font-bold text-slate-700 outline-none" value={localProp.nextVisit || ''} onChange={handleChange} />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-50 space-y-4">
+               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacto</label>
+               <input name="contactName" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" placeholder="Nombre" value={localProp.contactName || ''} onChange={handleChange} />
+               <input name="contactPhone" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" placeholder="Teléfono" value={localProp.contactPhone || ''} onChange={handleChange} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modales */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center animate-in zoom-in-95">
+              <h3 className="text-2xl font-black mb-6">Compartir</h3>
+              <button onClick={copyLink} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl font-bold">
+                <div className="flex items-center gap-3"><Copy className="w-5 h-5" /> Copiar Link</div>
+                {copyFeedback && <span className="text-[10px] text-indigo-600 animate-pulse">¡COPIADO!</span>}
               </button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          {currentUser ? (
-            <>
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-slate-900 leading-none">{currentUser.name}</p>
-                <button onClick={handleLogout} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500">Cerrar Sesión</button>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-indigo-50 border-2 border-white shadow-sm overflow-hidden">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`} alt="Avatar" />
-              </div>
-            </>
-          ) : (
-            <div className="bg-slate-100 px-4 py-1.5 rounded-full border border-slate-200">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modo Lectura</span>
-            </div>
-          )}
+              <button onClick={() => setShowShareModal(false)} className="mt-4 text-slate-400 font-bold">Cerrar</button>
+           </div>
         </div>
-      </header>
+      )}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
-        {!selectedGroupId ? (
-          <SearchGroupsList 
-            groups={searchGroups} 
-            allProperties={allProperties}
-            onCreate={createSearchGroup} 
-            onSelect={setSelectedGroupId} 
-            onDelete={(id: string) => supabase.from('search_groups').delete().eq('id', id).then(() => window.location.reload())} 
-          />
-        ) : selectedProperty ? (
-          <PropertyDetails 
-            property={selectedProperty} 
-            onUpdate={handleUpdateProperty} 
-            onBack={() => setSelectedPropertyId(null)} 
-            onDelete={async () => {
-              const { error } = await supabase.from('properties').delete().eq('id', selectedProperty.id);
-              if (!error) {
-                setSelectedPropertyId(null);
-                setAllProperties(prev => prev.filter(p => p.id !== selectedProperty.id));
-              }
-            }} 
-          />
-        ) : (
-          <Dashboard 
-            properties={projectProperties} 
-            onSelect={setSelectedPropertyId}
-            groupName={selectedGroup?.name || 'Cargando...'}
-            onUpdateGroup={updateGroupName}
-          />
-        )}
-      </main>
-
-      {verifyingUrl && (
-        <PropertyVerifier 
-          url={verifyingUrl} 
-          onCancel={() => setVerifyingUrl(null)} 
-          onConfirm={onConfirmProperty} 
-        />
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 text-center animate-in zoom-in-95">
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="w-8 h-8" /></div>
+              <h3 className="text-xl font-black mb-6">¿Eliminar propiedad?</h3>
+              <button onClick={onDelete} className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-200">Eliminar</button>
+              <button onClick={() => setShowDeleteModal(false)} className="w-full py-4 text-slate-400 font-bold">Cancelar</button>
+           </div>
+        </div>
       )}
     </div>
   );
 };
 
-export default App;
+export default PropertyDetails;
