@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-client';
+import { createClient } from '@supabase/supabase-js';
 import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
