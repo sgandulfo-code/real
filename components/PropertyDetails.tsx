@@ -1,151 +1,84 @@
-import React from 'react';
-import { 
-  ArrowLeft, 
-  ExternalLink, 
-  Trash2, 
-  MapPin, 
-  Bed, 
-  Bath, 
-  Maximize, 
-  Phone, 
-  User as UserIcon, 
-  Calendar,
-  Globe,
-  MessageSquare
-} from 'lucide-react';
-import { Property } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Property, PropertyStatus } from '../types';
+import { ArrowLeft, Trash2, MapPin, MessageSquare, Target } from 'lucide-react';
 
-interface PropertyDetailsProps {
-  property: Property | undefined;
+interface Props {
+  property: Property;
+  onUpdate: (property: Property) => void;
   onBack: () => void;
-  onUpdate: (updatedProperty: Property) => void;
-  onDelete: (id: string) => void;
+  onDelete: () => void;
 }
 
-const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onBack, onUpdate, onDelete }) => {
-  // 1. Salvaguarda: Si por alguna razón la propiedad no llega, mostramos un error en lugar de blanco
-  if (!property) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] border border-slate-100 shadow-sm">
-        <p className="text-slate-500 font-bold mb-4">No se pudo encontrar la información de la propiedad.</p>
-        <button onClick={onBack} className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold">Volver al Dashboard</button>
-      </div>
-    );
-  }
+const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete }) => {
+  const [localProp, setLocalProp] = useState<Property>(property);
+  useEffect(() => { setLocalProp(property); }, [property]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const updated = { ...localProp, [e.target.name]: e.target.value };
+    setLocalProp(updated);
+    onUpdate(updated);
+  };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto pb-20">
-      {/* BARRA DE NAVEGACIÓN SUPERIOR */}
-      <div className="flex items-center justify-between mb-8">
-        <button 
-          onClick={onBack}
-          className="group flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold transition-colors"
-        >
-          <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-indigo-50 transition-all">
+    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      <div className="flex items-center justify-between bg-white/50 p-4 rounded-[2rem] backdrop-blur-sm border border-white shadow-sm">
+        <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold group transition-all">
+          <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
             <ArrowLeft className="w-5 h-5" />
           </div>
           Volver
         </button>
-        
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => onDelete(property.id)}
-            className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
-            title="Eliminar de mi lista"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
-          <a 
-            href={property.url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
-          >
-            Ver Original <ExternalLink className="w-4 h-4" />
-          </a>
-        </div>
+        <button onClick={onDelete} className="p-3 text-slate-300 hover:text-red-500 transition-all">
+          <Trash2 className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA: IMAGEN Y BÁSICOS */}
         <div className="lg:col-span-2 space-y-8">
-          <div className="rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
-            <img 
-              src={property.thumbnail} 
-              className="w-full aspect-video object-cover"
-              alt={property.title}
-            />
-          </div>
+          <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm">
+            <img src={localProp.thumbnail} className="w-full h-80 object-cover" alt="" />
+            <div className="p-10">
+              <div className="flex flex-col md:flex-row justify-between gap-6 mb-10">
+                <div className="flex-1 space-y-2">
+                  <input name="title" className="w-full text-4xl font-black text-slate-900 border-none p-0 outline-none bg-transparent uppercase italic tracking-tighter" value={localProp.title} onChange={handleChange} />
+                  <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                    <MapPin className="w-4 h-4 text-indigo-500" />
+                    <input name="address" className="w-full border-none p-0 outline-none bg-transparent" value={localProp.address} onChange={handleChange} />
+                  </div>
+                </div>
+                <div className="bg-indigo-50 px-8 py-5 rounded-[2rem] h-fit">
+                  <input name="price" className="text-3xl font-black text-indigo-600 border-none p-0 outline-none bg-transparent w-40 text-right" value={localProp.price} onChange={handleChange} />
+                </div>
+              </div>
 
-          <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm space-y-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                  {property.sourceName}
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className="text-slate-400 text-xs font-medium flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> Agregado hoy
-                </span>
-              </div>
-              <h1 className="text-3xl font-black text-slate-900 leading-tight mb-2">{property.title}</h1>
-              <div className="flex items-center gap-1 text-slate-500 font-medium">
-                <MapPin className="w-4 h-4 text-indigo-400" />
-                {property.address || 'Ubicación no especificada'}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-50">
-              <div className="bg-slate-50 rounded-2xl p-4 text-center">
-                <Bed className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                <p className="text-lg font-black text-slate-800">{property.bedrooms}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Dorms</p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-4 text-center">
-                <Bath className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                <p className="text-lg font-black text-slate-800">{property.bathrooms || 1}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Baños</p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-4 text-center">
-                <Maximize className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                <p className="text-lg font-black text-slate-800">{property.sqft}m²</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Superficie</p>
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-2">
+                   <MessageSquare className="w-3 h-3 text-indigo-500" /> Notas Estratégicas
+                </label>
+                <textarea name="comments" rows={6} className="w-full bg-slate-50 border-none rounded-[2rem] p-8 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all text-lg" value={localProp.comments || ''} onChange={handleChange} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: PRECIO Y CONTACTO */}
         <div className="space-y-6">
-          <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl shadow-indigo-100">
-            <p className="text-indigo-100 font-bold uppercase text-[10px] tracking-widest mb-2">Precio de Venta</p>
-            <h2 className="text-4xl font-black mb-6">{property.price}</h2>
-            <button className="w-full py-4 bg-white text-indigo-600 rounded-2xl font-black hover:bg-indigo-50 transition-colors shadow-lg shadow-indigo-700/20">
-              Me interesa esta propiedad
-            </button>
-          </div>
-
-          <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm">
-            <h3 className="font-black text-slate-900 mb-6 flex items-center gap-2">
-              <UserIcon className="w-5 h-5 text-indigo-500" /> Contacto
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center">
-                  <Phone className="w-4 h-4 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Teléfono</p>
-                  <p className="font-bold text-slate-700">{property.contactPhone || 'No disponible'}</p>
-                </div>
+          <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-8">
+            <h3 className="font-black text-slate-900 text-xl flex items-center gap-2 tracking-tight underline decoration-indigo-500 decoration-4">GESTIÓN</h3>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Estado</label>
+                <select name="status" className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none appearance-none" value={localProp.status} onChange={handleChange}>
+                  {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-slate-400" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-50 rounded-2xl text-center">
+                  <p className="text-[9px] font-black text-slate-400 uppercase">m²</p>
+                  <input name="sqft" type="number" className="bg-transparent border-none p-0 font-black text-xl w-full text-center outline-none" value={localProp.sqft} onChange={handleChange} />
                 </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Nombre</p>
-                  <p className="font-bold text-slate-700">{property.contactName || 'Inmobiliaria'}</p>
+                <div className="p-4 bg-slate-50 rounded-2xl text-center">
+                  <p className="text-[9px] font-black text-slate-400 uppercase">Dorm</p>
+                  <input name="bedrooms" type="number" className="bg-transparent border-none p-0 font-black text-xl w-full text-center outline-none" value={localProp.bedrooms} onChange={handleChange} />
                 </div>
               </div>
             </div>
