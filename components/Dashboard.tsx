@@ -8,10 +8,10 @@ import {
   X, 
   Bed, 
   Maximize, 
-  ChevronRight,
-  ExternalLink
+  ChevronRight 
 } from 'lucide-react';
-import MapView from './MapView';
+// IMPORTANTE: Esta importación debe coincidir con el nombre de tu archivo de mapa
+import MapView from './MapView'; 
 
 const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -28,7 +28,7 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       
-      {/* --- SECCIÓN DE CABECERA Y CONTROL --- */}
+      {/* --- HEADER DEL PROYECTO --- */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
               />
               <button 
                 onClick={handleUpdate} 
-                className="p-2 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100"
+                className="p-2 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-colors shadow-lg"
               >
                 <Check className="w-5 h-5" />
               </button>
@@ -73,7 +73,7 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
           </p>
         </div>
 
-        {/* SELECTOR DE VISTA (TOGGLE) */}
+        {/* --- SELECTOR DE VISTA (GRID / MAP) --- */}
         <div className="flex bg-slate-100 p-1.5 rounded-2xl self-start md:self-end shadow-inner">
           <button 
             onClick={() => setViewMode('grid')}
@@ -98,19 +98,13 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
         </div>
       </div>
 
-      {/* --- CONTENIDO PRINCIPAL --- */}
+      {/* --- CONTENIDO: MAPA O GRILLA --- */}
       {viewMode === 'map' ? (
         <div className="w-full h-[650px] rounded-[40px] overflow-hidden border-8 border-white shadow-2xl relative bg-slate-100">
           <MapView 
             properties={properties} 
             onSelectProperty={onSelect} 
           />
-          <div className="absolute bottom-6 left-6 right-6 flex justify-center pointer-events-none">
-            <div className="bg-slate-900/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl text-xs font-black shadow-2xl pointer-events-auto flex items-center gap-3 tracking-widest uppercase">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-              Explorando {properties.length} ubicaciones
-            </div>
-          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -120,7 +114,7 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
               onClick={() => onSelect(property.id)}
               className="group bg-white rounded-[32px] border border-slate-100 overflow-hidden hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer hover:-translate-y-2"
             >
-              {/* Imagen con Badge de Fuente */}
+              {/* Imagen */}
               <div className="aspect-[4/3] relative overflow-hidden">
                 <img 
                   src={property.thumbnail} 
@@ -133,19 +127,16 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
                 </div>
               </div>
 
-              {/* Contenido de la Card */}
+              {/* Contenido */}
               <div className="p-7">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-black text-slate-900 text-xl leading-tight group-hover:text-indigo-600 transition-colors">
-                    {property.title}
-                  </h3>
-                </div>
-                
-                <p className="text-2xl font-black text-indigo-600 mb-6 flex items-center gap-1">
+                <h3 className="font-black text-slate-900 text-xl leading-tight mb-2 group-hover:text-indigo-600 transition-colors truncate">
+                  {property.title}
+                </h3>
+                <p className="text-2xl font-black text-indigo-600 mb-6 leading-none">
                   {property.price}
                 </p>
                 
-                {/* Specs: Dormitorios, Baños, Metros */}
+                {/* Specs */}
                 <div className="flex items-center gap-3 pt-5 border-t border-slate-50">
                   <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
                     <Bed className="w-4 h-4 text-slate-400" />
@@ -165,8 +156,8 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
               </div>
             </div>
           ))}
-          
-          {/* Empty State */}
+
+          {/* Estado vacío */}
           {properties.length === 0 && (
             <div className="col-span-full py-32 text-center border-4 border-dashed border-slate-100 rounded-[50px] bg-slate-50/30">
               <div className="bg-white w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-50">
@@ -174,7 +165,7 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
               </div>
               <h4 className="text-slate-900 font-black text-xl mb-2">Tu Workspace está vacío</h4>
               <p className="text-slate-400 font-medium max-w-xs mx-auto">
-                Pega un enlace de cualquier portal inmobiliario arriba para empezar el análisis.
+                Pega un enlace de cualquier portal arriba para empezar.
               </p>
             </div>
           )}
