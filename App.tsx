@@ -1,221 +1,131 @@
 import React, { useState, useEffect } from 'react';
-import { Property, PropertyStatus, User, SearchGroup } from './types';
-import Dashboard from './components/Dashboard';
+import { Property, PropertyStatus } from './types';
+import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails';
-import Login from './components/Login';
-import SearchGroupsList from './components/SearchGroupsList';
-import PropertyVerifier from './components/PropertyVerifier';
-import { supabase } from './lib/supabase';
+import { Plus, LayoutGrid, Search, TrendingUp } from 'lucide-react';
 
-const STORAGE_KEY_USER = 'proptrack_current_user';
+// Datos iniciales de ejemplo para que el Score tenga contra qué comparar
+const INITIAL_DATA: Property[] = [
+  {
+    id: '1',
+    title: 'Ático Duplex en Chamberí',
+    address: 'Calle de Almagro, Madrid',
+    price: '€850.000',
+    bedrooms: 3,
+    bathrooms: 2,
+    sqft: 120,
+    thumbnail: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=800&q=80',
+    status: PropertyStatus.VISITING,
+    isFavorite: true,
+    comments: 'Excelente terraza, pero necesita reforma en cocina.'
+  },
+  {
+    id: '2',
+    title: 'Loft Moderno Malasaña',
+    address: 'Calle del Pez, Madrid',
+    price: '€420.000',
+    bedrooms: 1,
+    bathrooms: 1,
+    sqft: 65,
+    thumbnail: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80',
+    status: PropertyStatus.WATCHLIST,
+    isFavorite: false
+  }
+];
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
-  const [allProperties, setAllProperties] = useState<Property[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  const [newUrl, setNewUrl] = useState('');
-  const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
+  const [properties, setProperties] = useState<Property[]>(() => {
+    const saved = localStorage.getItem('proptrack_data');
+    return saved ? JSON.parse(saved) : INITIAL_DATA;
+  });
+  
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const savedUser = localStorage.getItem(STORAGE_KEY_USER);
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
-  }, []);
+    localStorage.setItem('proptrack_data', JSON.stringify(properties));
+  }, [properties]);
 
-  useEffect(() => {
-    const loadSupabaseData = async () => {
-      if (!currentUser) return;
-      
-      const { data: groups } = await supabase
-        .from('search_groups')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-      if (groups) setSearchGroups(groups);
-
-      const { data: props } = await supabase.from('properties').select('*');
-      if (props) {
-        const formattedProps: Property[] = props.map(p => ({
-          id: p.id,
-          searchGroupId: p.group_id,
-          url: p.url,
-          title: p.title || 'Propiedad sin título',
-          price: p.price || 'Consultar',
-          address: p.address || '',
-          lat: p.lat || -34.6037,
-          lng: p.lng || -58.3816,
-          sourceName: p.source_name || 'Inmobiliaria',
-          status: (p.status as PropertyStatus) || PropertyStatus.INTERESTED,
-          thumbnail: p.thumbnail,
-          favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(p.url).hostname}`,
-          rating: p.rating || 0,
-          bedrooms: p.bedrooms || 0,
-          bathrooms: p.bathrooms || 0,
-          sqft: p.sqft || 0,
-          contactName: p.contact_name || '',
-          contactPhone: p.contact_phone || '',
-          comments: p.comments || '',
-          createdAt: new Date(p.created_at).getTime()
-        }));
-        setAllProperties(formattedProps);
-      }
-    };
-    loadSupabaseData();
-  }, [currentUser]);
-
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+  const handleUpdateProperty = (updated: Property) => {
+    setProperties(prev => prev.map(p => p.id === updated.id ? updated : p));
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY_USER);
-    window.location.reload();
+  const handleDeleteProperty = (id: string) => {
+    setProperties(prev => prev.filter(p => p.id !== id));
+    setSelectedId(null);
   };
 
-  const createSearchGroup = async (name: string, description: string) => {
-    if (!currentUser) return;
-    const { data } = await supabase
-      .from('search_groups')
-      .insert([{ user_id: currentUser.id, name, description }])
-      .select();
-    if (data) setSearchGroups(prev => [data[0], ...prev]);
-  };
+  const selectedProperty = properties.find(p => p.id === selectedId);
 
-  const updateGroupName = async (newName: string) => {
-    if (!selectedGroupId) return;
-    const { error } = await supabase
-      .from('search_groups')
-      .update({ name: newName })
-      .eq('id', selectedGroupId);
-
-    if (!error) {
-      setSearchGroups(prev => prev.map(g => g.id === selectedGroupId ? { ...g, name: newName } : g));
-    }
-  };
-
-  // PUNTO 1: LÓGICA DE CONFIRMACIÓN CON IMAGEN DINÁMICA
-  const onConfirmProperty = async (verifiedData: any) => {
-    if (!selectedGroupId || !verifyingUrl) return;
-
-    // Si no hay imagen real, generamos una basada en el contexto del título
-    const aiGeneratedThumb = `https://images.unsplash.com/photo-1580587767526-cf3873950645?q=80&w=800&auto=format&fit=crop`;
-    const finalThumbnail = verifiedData.thumbnail || aiGeneratedThumb;
-
-    const { error } = await supabase
-      .from('properties')
-      .insert([{
-        group_id: selectedGroupId,
-        url: verifyingUrl,
-        title: verifiedData.title,
-        price: verifiedData.price,
-        address: verifiedData.address,
-        bedrooms: verifiedData.bedrooms,
-        bathrooms: verifiedData.bathrooms,
-        sqft: verifiedData.sqft,
-        lat: verifiedData.lat,
-        lng: verifiedData.lng,
-        source_name: verifiedData.sourceName,
-        thumbnail: finalThumbnail,
-        status: PropertyStatus.INTERESTED
-      }]);
-
-    if (!error) {
-      setVerifyingUrl(null);
-      setNewUrl('');
-      // Recarga suave para mostrar la nueva card
-      const { data: newProps } = await supabase.from('properties').select('*');
-      if (newProps) window.location.reload(); 
-    } else {
-      alert("Error al guardar: " + error.message);
-    }
-  };
-
-  if (!currentUser) return <Login onLogin={handleLogin} />;
-
-  const selectedGroup = searchGroups.find(g => g.id === selectedGroupId);
-  const projectProperties = allProperties.filter(p => p.searchGroupId === selectedGroupId);
-  const selectedProperty = allProperties.find(p => p.id === selectedPropertyId);
+  // --- LÓGICA GLOBAL DE SCORE PARA EL DASHBOARD ---
+  const averageRatio = properties.reduce((acc, curr) => {
+    const price = Number(curr.price.replace(/[^0-9.-]+/g, ""));
+    return acc + (price / (curr.sqft || 1));
+  }, 0) / (properties.length || 1);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
-      <header className="h-16 border-b bg-white/80 backdrop-blur-md flex items-center px-6 justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div 
-            className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white cursor-pointer shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all" 
-            onClick={() => { setSelectedGroupId(null); setSelectedPropertyId(null); }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
+      {/* Navbar */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 p-2 rounded-xl">
+              <TrendingUp className="text-white w-5 h-5" />
+            </div>
+            <span className="font-black text-xl tracking-tighter">PROP<span className="text-indigo-600">TRACK</span></span>
           </div>
-          <h1 className="font-bold text-slate-800 text-xl tracking-tight">PropTrack AI</h1>
-        </div>
-        
-        {selectedGroupId && !selectedPropertyId && (
-          <div className="flex-1 max-w-xl px-10">
-            <div className="relative group">
+          
+          {!selectedId && (
+            <div className="flex items-center gap-4 bg-slate-100 px-4 py-2 rounded-2xl w-1/3">
+              <Search className="w-4 h-4 text-slate-400" />
               <input 
                 type="text" 
-                placeholder="Pegar link de propiedad..." 
-                className="w-full pl-5 pr-36 py-2.5 bg-slate-100 border-transparent rounded-full text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" 
-                value={newUrl} 
-                onChange={(e) => setNewUrl(e.target.value)} 
+                placeholder="Buscar por zona o nombre..." 
+                className="bg-transparent border-none outline-none text-sm w-full font-medium"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <button 
-                onClick={() => setVerifyingUrl(newUrl)} 
-                className="absolute right-1 top-1 bottom-1 px-6 bg-indigo-600 text-white text-xs font-bold rounded-full hover:bg-indigo-700 transition-colors shadow-md"
-              >
-                AGREGAR
+            </div>
+          )}
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {selectedProperty ? (
+          <PropertyDetails 
+            property={selectedProperty}
+            allProperties={properties} // <--- REQUERIDO PARA EL PUNTO 3
+            onUpdate={handleUpdateProperty}
+            onBack={() => setSelectedId(null)}
+            onDelete={() => handleDeleteProperty(selectedProperty.id)}
+          />
+        ) : (
+          <div className="space-y-8">
+            <div className="flex justify-between items-end">
+              <div>
+                <h1 className="text-4xl font-black text-slate-900">Tu Portfolio</h1>
+                <p className="text-slate-500 font-medium">Tienes {properties.length} propiedades en análisis</p>
+              </div>
+              <button className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-100">
+                <Plus className="w-5 h-5" /> Nueva Propiedad
               </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {properties
+                .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map(property => (
+                <PropertyCard 
+                  key={property.id} 
+                  property={property} 
+                  onClick={() => setSelectedId(property.id)}
+                  onUpdate={handleUpdateProperty}
+                />
+              ))}
             </div>
           </div>
         )}
-
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-bold text-slate-900 leading-none">{currentUser?.name}</p>
-            <button onClick={handleLogout} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500">Cerrar Sesión</button>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-indigo-50 border-2 border-white shadow-sm overflow-hidden">
-            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.email}`} alt="Avatar" />
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
-        {!selectedGroupId ? (
-          <SearchGroupsList 
-            groups={searchGroups} 
-            onCreate={createSearchGroup} 
-            onSelect={setSelectedGroupId} 
-            onDelete={(id) => supabase.from('search_groups').delete().eq('id', id).then(() => window.location.reload())} 
-          />
-        ) : selectedProperty ? (
-          <PropertyDetails 
-            property={selectedProperty} 
-            onUpdate={() => window.location.reload()} 
-            onBack={() => setSelectedPropertyId(null)} 
-            onDelete={() => supabase.from('properties').delete().eq('id', selectedProperty.id).then(() => window.location.reload())} 
-          />
-        ) : (
-          <Dashboard 
-            properties={projectProperties} 
-            onSelect={setSelectedPropertyId}
-            groupName={selectedGroup?.name || 'Cargando...'}
-            onUpdateGroup={updateGroupName}
-          />
-        )}
       </main>
-
-      {verifyingUrl && (
-        <PropertyVerifier 
-          url={verifyingUrl} 
-          onCancel={() => setVerifyingUrl(null)} 
-          onConfirm={onConfirmProperty} 
-        />
-      )}
     </div>
   );
 };
