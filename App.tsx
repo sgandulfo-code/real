@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js'; // Cambiado a js para que coincida con tu package.json
+import { createClient } from '@supabase/supabase-js'; 
 import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
@@ -48,7 +48,7 @@ function App() {
 
       const formattedProps: Property[] = props.map(p => ({
         id: p.id,
-        searchGroupId: p.group_id, // Mapeo correcto desde la DB
+        searchGroupId: p.group_id,
         url: p.url,
         title: p.title || 'Propiedad sin título',
         price: p.price || 'Consultar',
@@ -102,14 +102,12 @@ function App() {
 
   // --- 2. LÓGICA DE ACTUALIZACIÓN CORREGIDA ---
   const handleUpdateProperty = async (updatedProp: Property) => {
-    // Sincronización local inmediata
     setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
     
-    // Persistencia en Supabase
     const { error } = await supabase
       .from('properties')
       .update({
-        group_id: updatedProp.searchGroupId, // <-- CORRECCIÓN: Asegura el ID del grupo
+        group_id: updatedProp.searchGroupId, 
         title: updatedProp.title,
         price: updatedProp.price,
         address: updatedProp.address,
@@ -129,11 +127,7 @@ function App() {
       })
       .eq('id', updatedProp.id);
 
-    if (error) {
-      console.error("Error al sincronizar con Supabase:", error.message);
-      // Opcional: Recargar datos si hay error para revertir cambios locales
-      // loadSupabaseData(); 
-    }
+    if (error) console.error("Error al sincronizar con Supabase:", error.message);
   };
 
   // --- 3. ELIMINACIÓN ---
@@ -169,74 +163,29 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
-      <Navbar 
-        groups={searchGroups}
-        activeGroupId={activeGroupId}
-        onGroupSelect={(id) => {
-          setActiveGroupId(id);
-          setSelectedProperty(null);
-        }}
-      />
+      {/* Header unificado con SearchGroupsList */}
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
+        <div className="max-w-[1600px] mx-auto px-4 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-100">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="font-black text-xl tracking-tight block leading-none">PropTrack AI</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</span>
+            </div>
+          </div>
+          
+          <SearchGroupsList 
+            groups={searchGroups}
+            activeGroupId={activeGroupId}
+            onSelectGroup={(id) => {
+              setActiveGroupId(id);
+              setSelectedProperty(null);
+            }}
+          />
+        </div>
+      </header>
 
       <main className="p-4 md:p-8 max-w-[1600px] mx-auto">
-        {selectedProperty ? (
-          <PropertyDetails 
-            property={selectedProperty}
-            onUpdate={handleUpdateProperty}
-            onBack={() => setSelectedProperty(null)}
-            onDelete={() => handleDeleteProperty(selectedProperty.id)}
-          />
-        ) : (
-          <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-black text-slate-900">
-                  {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
-                </h1>
-                <p className="text-slate-500 font-medium">Tienes {filteredProperties.length} propiedades filtradas.</p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="text"
-                    placeholder="Buscar por título o dirección..."
-                    className="pl-12 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-full md:w-80 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <select 
-                  className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-600 outline-none cursor-pointer"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                >
-                  <option value="ALL">Todos los estados</option>
-                  {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {filteredProperties.length > 0 ? (
-              <Dashboard 
-                activeGroup={searchGroups.find(g => g.id === activeGroupId)!}
-                properties={filteredProperties}
-                onSelectProperty={setSelectedProperty}
-                onUpdateProperty={handleUpdateProperty}
-              />
-            ) : (
-              <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-slate-100">
-                <Building2 className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-slate-400">No se encontraron propiedades</h3>
-                <p className="text-slate-300">Intenta cambiar los filtros o la búsqueda.</p>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
-
-export default App;
+        {
