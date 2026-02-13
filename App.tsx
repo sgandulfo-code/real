@@ -100,7 +100,7 @@ function App() {
     }
   };
 
-  // --- 2. LÓGICA DE ACTUALIZACIÓN CORREGIDA ---
+  // --- 2. LÓGICA DE ACTUALIZACIÓN ---
   const handleUpdateProperty = async (updatedProp: Property) => {
     setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
     
@@ -154,38 +154,4 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
-          <p className="text-slate-400 font-bold tracking-widest uppercase text-[10px]">Cargando propiedades...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
-      {/* Header unificado con SearchGroupsList */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-4 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-100">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="font-black text-xl tracking-tight block leading-none">PropTrack AI</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</span>
-            </div>
-          </div>
-          
-          <SearchGroupsList 
-            groups={searchGroups}
-            activeGroupId={activeGroupId}
-            onSelectGroup={(id) => {
-              setActiveGroupId(id);
-              setSelectedProperty(null);
-            }}
-          />
-        </div>
-      </header>
-
-      <main className="p-4 md:p-8 max-w-[1600px] mx-auto">
-        {
+          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin
