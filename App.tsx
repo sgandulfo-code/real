@@ -60,6 +60,8 @@ const App: React.FC = () => {
           contactName: p.contact_name || '',
           contactPhone: p.contact_phone || '',
           comments: p.comments || '',
+          nextVisit: p.next_visit || '',
+          isFavorite: p.is_favorite || false,
           createdAt: new Date(p.created_at).getTime()
         }));
         setAllProperties(formattedProps);
@@ -110,14 +112,12 @@ const App: React.FC = () => {
     }
   };
 
-  // --- FUNCIÓN MEJORADA CON GEOCODIFICACIÓN ---
   const onConfirmProperty = async (verifiedData: any) => {
     if (!selectedGroupId || !verifyingUrl) return;
 
     let finalLat = verifiedData.lat;
     let finalLng = verifiedData.lng;
 
-    // Si no tenemos coordenadas reales (usamos el default de BA como señal de que faltan)
     if (verifiedData.address && (finalLat === -34.6037 || !finalLat)) {
       try {
         const response = await fetch(
@@ -161,6 +161,31 @@ const App: React.FC = () => {
     } else {
       alert("Error al guardar: " + error.message);
     }
+  };
+
+  // NUEVA FUNCIÓN: Actualiza Supabase sin cerrar la vista
+  const handleUpdateProperty = async (updatedProp: Property) => {
+    // Actualización inmediata en UI
+    setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
+
+    // Persistencia silenciosa en Supabase
+    const { error } = await supabase
+      .from('properties')
+      .update({
+        title: updatedProp.title,
+        price: updatedProp.price,
+        address: updatedProp.address,
+        comments: updatedProp.comments,
+        rating: updatedProp.rating,
+        status: updatedProp.status,
+        contact_name: updatedProp.contactName,
+        contact_phone: updatedProp.contactPhone,
+        next_visit: updatedProp.nextVisit,
+        is_favorite: updatedProp.isFavorite
+      })
+      .eq('id', updatedProp.id);
+
+    if (error) console.error("Error al sincronizar con Supabase:", error.message);
   };
 
   const params = new URLSearchParams(window.location.search);
@@ -242,9 +267,15 @@ const App: React.FC = () => {
         ) : selectedProperty ? (
           <PropertyDetails 
             property={selectedProperty} 
-            onUpdate={() => window.location.reload()} 
+            onUpdate={handleUpdateProperty} 
             onBack={() => setSelectedPropertyId(null)} 
-            onDelete={() => supabase.from('properties').delete().eq('id', selectedProperty.id).then(() => window.location.reload())} 
+            onDelete={async () => {
+              const { error } = await supabase.from('properties').delete().eq('id', selectedProperty.id);
+              if (!error) {
+                setSelectedPropertyId(null);
+                setAllProperties(prev => prev.filter(p => p.id !== selectedProperty.id));
+              }
+            }} 
           />
         ) : (
           <Dashboard 
