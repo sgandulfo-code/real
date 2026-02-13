@@ -1,152 +1,220 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from './lib/supabase'; // Tu archivo de conexión
-import { Property, PropertyStatus } from './types';
-import PropertyCard from './components/PropertyCard';
+import React, { useState, useEffect } from 'react';
+import { Property, PropertyStatus, User, SearchGroup } from './types';
+import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
-import { TrendingUp, Plus, User, LogOut, Users, X } from 'lucide-react';
+import Login from './components/Login';
+import SearchGroupsList from './components/SearchGroupsList';
+import PropertyVerifier from './components/PropertyVerifier';
+import { supabase } from './lib/supabase';
+
+const STORAGE_KEY_USER = 'proptrack_current_user';
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<any>(null);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false); // Para el formulario
-  const [loading, setLoading] = useState(true);
-
-  // FORMULARIO LOCAL (Lo que el usuario edita)
-  const [newProp, setNewProp] = useState({
-    title: '', price: '', address: '', sqft: 80, bedrooms: 2,
-    thumbnail: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80'
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
+  const [allProperties, setAllProperties] = useState<Property[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [newUrl, setNewUrl] = useState('');
+  const [verifyingUrl, setVerifyingUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Recuperar Sesión
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchProperties();
-      setLoading(false);
-    });
-
-    // 2. Escuchar cambios de usuario (Login/Logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchProperties();
-    });
-
-    return () => subscription.unsubscribe();
+    const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+    if (savedUser) setCurrentUser(JSON.parse(savedUser));
   }, []);
 
-  async function fetchProperties() {
-    const { data } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
-    if (data) setProperties(data);
-  }
+  useEffect(() => {
+    const loadSupabaseData = async () => {
+      if (!currentUser) return;
+      
+      const { data: groups } = await supabase
+        .from('search_groups')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+      if (groups) setSearchGroups(groups);
 
-  const handleSaveProperty = async () => {
-    const { data, error } = await supabase.from('properties').insert([
-      { ...newProp, user_id: session?.user?.id, status: PropertyStatus.WATCHLIST }
-    ]).select();
-    
-    if (!error && data) {
-      setProperties([data[0], ...properties]);
-      setShowForm(false);
+      const { data: props } = await supabase.from('properties').select('*');
+      if (props) {
+        const formattedProps: Property[] = props.map(p => ({
+          id: p.id,
+          searchGroupId: p.group_id,
+          url: p.url,
+          title: p.title || 'Propiedad sin título',
+          price: p.price || 'Consultar',
+          address: p.address || '',
+          lat: p.lat || -34.6037,
+          lng: p.lng || -58.3816,
+          sourceName: p.source_name || 'Inmobiliaria',
+          status: (p.status as PropertyStatus) || PropertyStatus.INTERESTED,
+          thumbnail: p.thumbnail,
+          favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(p.url).hostname}`,
+          rating: p.rating || 0,
+          bedrooms: p.bedrooms || 0,
+          bathrooms: p.bathrooms || 0,
+          sqft: p.sqft || 0,
+          contactName: p.contact_name || '',
+          contactPhone: p.contact_phone || '',
+          comments: p.comments || '',
+          createdAt: new Date(p.created_at).getTime()
+        }));
+        setAllProperties(formattedProps);
+      }
+    };
+    loadSupabaseData();
+  }, [currentUser]);
+
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_KEY_USER);
+    window.location.reload();
+  };
+
+  const createSearchGroup = async (name: string, description: string) => {
+    if (!currentUser) return;
+    const { data } = await supabase
+      .from('search_groups')
+      .insert([{ user_id: currentUser.id, name, description }])
+      .select();
+    if (data) setSearchGroups(prev => [data[0], ...prev]);
+  };
+
+  const updateGroupName = async (newName: string) => {
+    if (!selectedGroupId) return;
+    const { error } = await supabase
+      .from('search_groups')
+      .update({ name: newName })
+      .eq('id', selectedGroupId);
+
+    if (!error) {
+      setSearchGroups(prev => prev.map(g => g.id === selectedGroupId ? { ...g, name: newName } : g));
     }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center font-black">CARGANDO...</div>;
+  // PUNTO 1: LÓGICA DE CONFIRMACIÓN CON IMAGEN DINÁMICA
+  const onConfirmProperty = async (verifiedData: any) => {
+    if (!selectedGroupId || !verifyingUrl) return;
 
-  // SI NO HAY SESIÓN, MOSTRAR LOGIN
-  if (!session) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-50">
-        <button 
-          onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}
-          className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black shadow-xl"
-        >
-          ENTRAR CON GOOGLE
-        </button>
-      </div>
-    );
-  }
+    // Si no hay imagen real, generamos una basada en el contexto del título
+    const aiGeneratedThumb = `https://images.unsplash.com/photo-1580587767526-cf3873950645?q=80&w=800&auto=format&fit=crop`;
+    const finalThumbnail = verifiedData.thumbnail || aiGeneratedThumb;
 
-  const selectedProperty = properties.find(p => p.id === selectedId);
+    const { error } = await supabase
+      .from('properties')
+      .insert([{
+        group_id: selectedGroupId,
+        url: verifyingUrl,
+        title: verifiedData.title,
+        price: verifiedData.price,
+        address: verifiedData.address,
+        bedrooms: verifiedData.bedrooms,
+        bathrooms: verifiedData.bathrooms,
+        sqft: verifiedData.sqft,
+        lat: verifiedData.lat,
+        lng: verifiedData.lng,
+        source_name: verifiedData.sourceName,
+        thumbnail: finalThumbnail,
+        status: PropertyStatus.INTERESTED
+      }]);
+
+    if (!error) {
+      setVerifyingUrl(null);
+      setNewUrl('');
+      // Recarga suave para mostrar la nueva card
+      const { data: newProps } = await supabase.from('properties').select('*');
+      if (newProps) window.location.reload(); 
+    } else {
+      alert("Error al guardar: " + error.message);
+    }
+  };
+
+  if (!currentUser) return <Login onLogin={handleLogin} />;
+
+  const selectedGroup = searchGroups.find(g => g.id === selectedGroupId);
+  const projectProperties = allProperties.filter(p => p.searchGroupId === selectedGroupId);
+  const selectedProperty = allProperties.find(p => p.id === selectedPropertyId);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      {/* NAVBAR ORIGINAL */}
-      <nav className="bg-white border-b px-6 py-4 sticky top-0 z-50 flex justify-between items-center">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-2 rounded-xl"><TrendingUp className="text-white w-5 h-5" /></div>
-            <span className="font-black text-xl italic uppercase">PropTrack</span>
-          </div>
-          <div className="text-indigo-600 font-bold text-xs border-l pl-6 flex items-center gap-2">
-            <Users size={16}/> MI GRUPO
-          </div>
-        </div>
-
+    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
+      <header className="h-16 border-b bg-white/80 backdrop-blur-md flex items-center px-6 justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setShowForm(true)}
-            className="bg-slate-900 text-white px-4 py-2 rounded-xl font-black text-xs flex items-center gap-2"
+          <div 
+            className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white cursor-pointer shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all" 
+            onClick={() => { setSelectedGroupId(null); setSelectedPropertyId(null); }}
           >
-            <Plus size={16} /> AÑADIR
-          </button>
-          <button onClick={() => supabase.auth.signOut()} className="text-slate-400"><LogOut size={20}/></button>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto p-6">
-        {selectedProperty ? (
-          <PropertyDetails 
-            property={selectedProperty}
-            onUpdate={async (upd) => {
-              await supabase.from('properties').update(upd).eq('id', upd.id);
-              setProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
-            }}
-            onBack={() => setSelectedId(null)}
-            onDelete={async () => {
-              await supabase.from('properties').delete().eq('id', selectedProperty.id);
-              setProperties(prev => prev.filter(p => p.id !== selectedProperty.id));
-              setSelectedId(null);
-            }}
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {properties.map(p => (
-              <PropertyCard key={p.id} property={p} onClick={() => setSelectedId(p.id)} />
-            ))}
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
           </div>
-        )}
-      </main>
-
-      {/* EL FORMULARIO QUE BUSCABAS (Ahora integrado aquí) */}
-      {showForm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowForm(false)} />
-          <div className="relative bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="font-black text-xl italic uppercase">Nueva Propiedad</h2>
-              <button onClick={() => setShowForm(false)}><X /></button>
-            </div>
-            <div className="space-y-4">
+          <h1 className="font-bold text-slate-800 text-xl tracking-tight">PropTrack AI</h1>
+        </div>
+        
+        {selectedGroupId && !selectedPropertyId && (
+          <div className="flex-1 max-w-xl px-10">
+            <div className="relative group">
               <input 
-                placeholder="Título" 
-                className="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" 
-                onChange={e => setNewProp({...newProp, title: e.target.value})}
-              />
-              <input 
-                placeholder="Precio (€)" 
-                className="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" 
-                onChange={e => setNewProp({...newProp, price: e.target.value})}
+                type="text" 
+                placeholder="Pegar link de propiedad..." 
+                className="w-full pl-5 pr-36 py-2.5 bg-slate-100 border-transparent rounded-full text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner" 
+                value={newUrl} 
+                onChange={(e) => setNewUrl(e.target.value)} 
               />
               <button 
-                onClick={handleSaveProperty}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-indigo-100"
+                onClick={() => setVerifyingUrl(newUrl)} 
+                className="absolute right-1 top-1 bottom-1 px-6 bg-indigo-600 text-white text-xs font-bold rounded-full hover:bg-indigo-700 transition-colors shadow-md"
               >
-                GUARDAR
+                AGREGAR
               </button>
             </div>
           </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-bold text-slate-900 leading-none">{currentUser?.name}</p>
+            <button onClick={handleLogout} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-red-500">Cerrar Sesión</button>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-indigo-50 border-2 border-white shadow-sm overflow-hidden">
+            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.email}`} alt="Avatar" />
+          </div>
         </div>
+      </header>
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+        {!selectedGroupId ? (
+          <SearchGroupsList 
+            groups={searchGroups} 
+            onCreate={createSearchGroup} 
+            onSelect={setSelectedGroupId} 
+            onDelete={(id) => supabase.from('search_groups').delete().eq('id', id).then(() => window.location.reload())} 
+          />
+        ) : selectedProperty ? (
+          <PropertyDetails 
+            property={selectedProperty} 
+            onUpdate={() => window.location.reload()} 
+            onBack={() => setSelectedPropertyId(null)} 
+            onDelete={() => supabase.from('properties').delete().eq('id', selectedProperty.id).then(() => window.location.reload())} 
+          />
+        ) : (
+          <Dashboard 
+            properties={projectProperties} 
+            onSelect={setSelectedPropertyId}
+            groupName={selectedGroup?.name || 'Cargando...'}
+            onUpdateGroup={updateGroupName}
+          />
+        )}
+      </main>
+
+      {verifyingUrl && (
+        <PropertyVerifier 
+          url={verifyingUrl} 
+          onCancel={() => setVerifyingUrl(null)} 
+          onConfirm={onConfirmProperty} 
+        />
       )}
     </div>
   );
