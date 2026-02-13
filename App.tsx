@@ -1,227 +1,247 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Property, PropertyStatus } from '../types';
-import { 
-  ArrowLeft, Heart, Share2, Trash2, ExternalLink, 
-  MapPin, Star, MessageSquare, Phone, Calendar, 
-  Zap, Check, Copy, Save
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createClient } from '@supabase/supabase-client';
+import { Property, PropertyStatus, SearchGroup } from './types';
+import Dashboard from './components/Dashboard';
+import PropertyDetails from './components/PropertyDetails';
+import Navbar from './components/Navbar';
+import { Building2, Loader2, Plus, Search, Filter } from 'lucide-react';
 
-interface Props {
-  property: Property;
-  onUpdate: (property: Property) => void;
-  onBack: () => void;
-  onDelete: () => void;
-}
+// Credenciales de Supabase
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const PropertyDetails: React.FC<Props> = ({ property, onUpdate, onBack, onDelete }) => {
-  // Estado local para que Tamara escriba fluido
-  const [localProp, setLocalProp] = useState<Property>(property);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState(false);
+function App() {
+  // --- ESTADOS PRINCIPALES ---
+  const [loading, setLoading] = useState(true);
+  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [allProperties, setAllProperties] = useState<Property[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   
-  // Referencia para evitar el guardado automático al entrar a la pantalla
-  const skipFirstRender = useRef(true);
+  // --- ESTADOS DE UI (Filtros y Búsqueda) ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<PropertyStatus | 'ALL'>('ALL');
 
-  // Si cambiamos de propiedad, reseteamos el estado local
+  // --- 1. CARGA INICIAL DE DATOS ---
   useEffect(() => {
-    setLocalProp(property);
-    skipFirstRender.current = true;
-  }, [property.id]);
+    loadSupabaseData();
+  }, []);
 
-  // DEBOUNCE: Solo guarda en Supabase 1 segundo después de dejar de escribir
-  useEffect(() => {
-    if (skipFirstRender.current) {
-      skipFirstRender.current = false;
-      return;
-    }
-
-    setIsSaving(true);
-    const timer = setTimeout(() => {
-      onUpdate(localProp);
-      setIsSaving(false);
-    }, 1000); 
-
-    return () => clearTimeout(timer);
-  }, [localProp, onUpdate]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setLocalProp(prev => ({ ...prev, [name]: value }));
-  };
-
-  const toggleFavorite = () => {
-    setLocalProp(prev => ({ ...prev, isFavorite: !prev.isFavorite }));
-  };
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(localProp.url);
-    setCopyFeedback(true);
-    setTimeout(() => setCopyFeedback(false), 2000);
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+  const loadSupabaseData = async () => {
+    try {
+      setLoading(true);
       
-      {/* Header con Indicador de Guardado */}
-      <div className="flex items-center justify-between bg-white/50 p-4 rounded-3xl backdrop-blur-sm border border-white shadow-sm">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-all font-bold group">
-            <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
-              <ArrowLeft className="w-5 h-5" />
-            </div>
-            Volver
-          </button>
-          
-          {/* Nube de guardado (Feedback visual para Tamara) */}
-          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase transition-all ${isSaving ? 'text-amber-500 bg-amber-50 animate-pulse' : 'text-emerald-500 bg-emerald-50'}`}>
-            <Save className="w-3 h-3" />
-            {isSaving ? 'Guardando...' : 'Sincronizado'}
-          </div>
-        </div>
+      // Traer grupos de búsqueda
+      const { data: groups, error: groupsError } = await supabase
+        .from('search_groups')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        <div className="flex items-center gap-2">
-          <button onClick={toggleFavorite} className={`p-3 rounded-2xl transition-all ${localProp.isFavorite ? 'bg-pink-50 text-pink-500' : 'bg-white text-slate-300 shadow-sm'}`}>
-            <Heart className={`w-5 h-5 ${localProp.isFavorite ? 'fill-current' : ''}`} />
-          </button>
-          <button onClick={() => setShowShareModal(true)} className="p-3 bg-white text-slate-300 rounded-2xl shadow-sm hover:text-indigo-600"><Share2 className="w-5 h-5" /></button>
-          <div className="w-px h-8 bg-slate-200 mx-2" />
-          <button onClick={() => setShowDeleteModal(true)} className="p-3 text-slate-300 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
+      if (groupsError) throw groupsError;
+
+      // Traer todas las propiedades
+      const { data: props, error: propsError } = await supabase
+        .from('properties')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (propsError) throw propsError;
+
+      // Formatear propiedades con los NUEVOS CAMPOS
+      const formattedProps: Property[] = props.map(p => ({
+        id: p.id,
+        searchGroupId: p.group_id,
+        url: p.url,
+        title: p.title || 'Propiedad sin título',
+        price: p.price || 'Consultar',
+        address: p.address || '',
+        lat: p.lat || -34.6037,
+        lng: p.lng || -58.3816,
+        sourceName: p.source_name || 'Inmobiliaria',
+        status: (p.status as PropertyStatus) || PropertyStatus.INTERESTED,
+        thumbnail: p.thumbnail,
+        favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(p.url).hostname}`,
+        rating: p.rating || 0,
+        bedrooms: p.bedrooms || 0,
+        bathrooms: p.bathrooms || 0,
+        sqft: p.sqft || 0,
+        // CAMPOS AGREGADOS PARA TAMARA
+        operationType: p.operation_type || 'Venta',
+        propertyType: p.property_type || 'Departamento',
+        floorNumber: p.floor_number || '',
+        m2Covered: p.m2_covered || 0,
+        m2Uncovered: p.m2_uncovered || 0,
+        expenses: p.expenses || 0,
+        // CAMPOS DE GESTIÓN
+        contactName: p.contact_name || '',
+        contactPhone: p.contact_phone || '',
+        comments: p.comments || '',
+        nextVisit: p.next_visit || '',
+        isFavorite: p.is_favorite || false,
+        createdAt: new Date(p.created_at).getTime()
+      }));
+
+      // Formatear grupos y contar sus propiedades
+      const formattedGroups: SearchGroup[] = groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        icon: g.icon || 'Home',
+        color: g.color || '#4f46e5',
+        propertyCount: formattedProps.filter(p => p.searchGroupId === g.id).length
+      }));
+
+      setSearchGroups(formattedGroups);
+      setAllProperties(formattedProps);
+      
+      if (formattedGroups.length > 0 && !activeGroupId) {
+        setActiveGroupId(formattedGroups[0].id);
+      }
+
+    } catch (err) {
+      console.error("Error crítico en carga:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- 2. LÓGICA DE ACTUALIZACIÓN (SINCRONIZADA) ---
+  const handleUpdateProperty = async (updatedProp: Property) => {
+    // 1. Update visual instantáneo (Optimistic UI)
+    setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
+    
+    // 2. Persistencia en base de datos
+    const { error } = await supabase
+      .from('properties')
+      .update({
+        title: updatedProp.title,
+        price: updatedProp.price,
+        address: updatedProp.address,
+        comments: updatedProp.comments,
+        rating: updatedProp.rating,
+        status: updatedProp.status,
+        contact_name: updatedProp.contactName,
+        contact_phone: updatedProp.contactPhone,
+        next_visit: updatedProp.nextVisit,
+        is_favorite: updatedProp.isFavorite,
+        // MAPEO DE CAMPOS NUEVOS A COLUMNAS SQL
+        operation_type: updatedProp.operationType,
+        property_type: updatedProp.propertyType,
+        floor_number: updatedProp.floorNumber,
+        m2_covered: updatedProp.m2Covered,
+        m2_uncovered: updatedProp.m2Uncovered,
+        expenses: updatedProp.expenses
+      })
+      .eq('id', updatedProp.id);
+
+    if (error) console.error("Error al sincronizar con Supabase:", error.message);
+  };
+
+  // --- 3. ELIMINACIÓN ---
+  const handleDeleteProperty = async (id: string) => {
+    const { error } = await supabase.from('properties').delete().eq('id', id);
+    if (!error) {
+      setAllProperties(prev => prev.filter(p => p.id !== id));
+      setSelectedProperty(null);
+    }
+  };
+
+  // --- 4. FILTRADO DINÁMICO ---
+  const filteredProperties = useMemo(() => {
+    return allProperties.filter(p => {
+      const matchesGroup = p.searchGroupId === activeGroupId;
+      const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            p.address.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
+      return matchesGroup && matchesSearch && matchesStatus;
+    });
+  }, [allProperties, activeGroupId, searchTerm, statusFilter]);
+
+  // --- UI RENDER ---
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
+          <p className="text-slate-400 font-bold tracking-widest uppercase text-[10px]">Cargando propiedades...</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
-            <div className="aspect-video relative overflow-hidden">
-              <img src={localProp.thumbnail} className="w-full h-full object-cover" alt="Prop" />
-              <div className="absolute top-6 left-6 bg-white/95 px-4 py-2 rounded-2xl shadow-xl text-xs font-black uppercase tracking-widest text-slate-700">
-                {localProp.sourceName}
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
+      <Navbar 
+        groups={searchGroups}
+        activeGroupId={activeGroupId}
+        onGroupSelect={(id) => {
+          setActiveGroupId(id);
+          setSelectedProperty(null);
+        }}
+      />
+
+      <main className="p-4 md:p-8 max-w-[1600px] mx-auto">
+        {selectedProperty ? (
+          <PropertyDetails 
+            property={selectedProperty}
+            onUpdate={handleUpdateProperty}
+            onBack={() => setSelectedProperty(null)}
+            onDelete={() => handleDeleteProperty(selectedProperty.id)}
+          />
+        ) : (
+          <div className="space-y-8">
+            {/* Header del Dashboard con Buscador */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-black text-slate-900">
+                  {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
+                </h1>
+                <p className="text-slate-500 font-medium">Tienes {filteredProperties.length} propiedades filtradas.</p>
               </div>
-            </div>
 
-            <div className="p-10">
-              <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-8">
-                <div className="flex-1 space-y-2">
-                  <input name="title" className="w-full text-4xl font-black text-slate-900 border-none p-0 focus:ring-0 outline-none bg-transparent" value={localProp.title} onChange={handleChange} />
-                  <div className="flex items-center gap-2 text-slate-400 font-medium">
-                    <MapPin className="w-4 h-4 text-indigo-500" />
-                    <input name="address" className="w-full border-none p-0 focus:ring-0 outline-none text-lg bg-transparent" value={localProp.address} onChange={handleChange} />
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input 
+                    type="text"
+                    placeholder="Buscar por título o dirección..."
+                    className="pl-12 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-full md:w-80 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-                <div className="bg-indigo-50 px-6 py-4 rounded-[2rem]">
-                  <input name="price" className="text-3xl font-black text-indigo-600 border-none p-0 focus:ring-0 outline-none text-right bg-transparent w-40" value={localProp.price} onChange={handleChange} />
-                </div>
-              </div>
-
-              {/* Valoración */}
-              <div className="flex items-center gap-6 py-6 border-y border-slate-50 mb-8">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Tu Valoración</label>
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star key={star} onClick={() => setLocalProp(p => ({...p, rating: star}))} className={`w-5 h-5 cursor-pointer ${star <= (localProp.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
-                    ))}
-                  </div>
-                </div>
-                <div className="w-px h-10 bg-slate-100" />
-                <a href={localProp.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 font-bold hover:underline">Link Original <ExternalLink className="w-4 h-4" /></a>
-              </div>
-
-              {/* TEXTAREA DE NOTAS (El que fallaba) */}
-              <div className="space-y-4">
-                <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  <MessageSquare className="w-3 h-3" /> Notas y Observaciones
-                </label>
-                <textarea 
-                  name="comments"
-                  rows={6}
-                  className="w-full bg-slate-50 border-none rounded-3xl p-6 text-slate-700 focus:ring-2 focus:ring-indigo-100 outline-none transition-all text-lg"
-                  placeholder="Escribe tus notas aquí..."
-                  value={localProp.comments || ''}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Estrategia de Visita (Tu diseño favorito) */}
-          <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/50">
-                  <Zap className="w-6 h-6 fill-current" />
-                </div>
-                <h3 className="text-2xl font-black">Estrategia de Visita</h3>
-              </div>
-              <p className="text-slate-400 mb-8 font-medium">Puntos clave para revisar en este departamento.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {['Presión de agua y cañerías', 'Estado de aberturas', 'Humedad en techos', 'Ruido del entorno'].map((tip, i) => (
-                  <div key={i} className="flex gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 text-sm font-bold">
-                    <Check className="w-5 h-5 text-indigo-400 shrink-0" /> {tip}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar de Gestión */}
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm space-y-8 sticky top-24">
-            <h3 className="font-black text-slate-900 text-xl">Gestión</h3>
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</label>
-                <select name="status" className="w-full bg-slate-100 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none cursor-pointer" value={localProp.status} onChange={handleChange}>
+                <select 
+                  className="bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-600 outline-none"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                >
+                  <option value="ALL">Todos los estados</option>
                   {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próxima Visita</label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input name="nextVisit" type="datetime-local" className="w-full bg-slate-100 border-none rounded-2xl pl-12 pr-5 py-4 font-bold text-slate-700 outline-none" value={localProp.nextVisit || ''} onChange={handleChange} />
-                </div>
+            </div>
+
+            {/* Grilla de Contenido */}
+            {filteredProperties.length > 0 ? (
+              <Dashboard 
+                activeGroup={searchGroups.find(g => g.id === activeGroupId)!}
+                properties={filteredProperties}
+                onSelectProperty={setSelectedProperty}
+                onUpdateProperty={handleUpdateProperty}
+              />
+            ) : (
+              <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-slate-100">
+                <Building2 className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-slate-400">No se encontraron propiedades</h3>
+                <p className="text-slate-300">Intenta cambiar los filtros o la búsqueda.</p>
               </div>
-            </div>
-
-            <div className="pt-6 border-t border-slate-50 space-y-4">
-               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contacto</label>
-               <input name="contactName" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" placeholder="Nombre" value={localProp.contactName || ''} onChange={handleChange} />
-               <input name="contactPhone" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none" placeholder="Teléfono" value={localProp.contactPhone || ''} onChange={handleChange} />
-            </div>
+            )}
           </div>
-        </div>
-      </div>
-
-      {/* Modales */}
-      {showShareModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 text-center animate-in zoom-in-95">
-              <h3 className="text-2xl font-black mb-6">Compartir</h3>
-              <button onClick={copyLink} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl font-bold">
-                <div className="flex items-center gap-3"><Copy className="w-5 h-5" /> Copiar Link</div>
-                {copyFeedback && <span className="text-[10px] text-indigo-600 animate-pulse">¡COPIADO!</span>}
-              </button>
-              <button onClick={() => setShowShareModal(false)} className="mt-4 text-slate-400 font-bold">Cerrar</button>
-           </div>
-        </div>
-      )}
-
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 text-center animate-in zoom-in-95">
-              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="w-8 h-8" /></div>
-              <h3 className="text-xl font-black mb-6">¿Eliminar propiedad?</h3>
-              <button onClick={onDelete} className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-200">Eliminar</button>
-              <button onClick={() => setShowDeleteModal(false)} className="w-full py-4 text-slate-400 font-bold">Cancelar</button>
-           </div>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   );
-};
+}
 
-export default PropertyDetails;
+export default App;
