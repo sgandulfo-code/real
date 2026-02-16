@@ -127,15 +127,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
-      {/* PARCHE DE CSS PARA EVITAR DESFASES */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        header { min-height: 80px; height: auto !important; }
       `}</style>
 
-      <header className="bg-white border-b border-slate-100 z-50 sticky top-0 shadow-sm w-full">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* HEADER PRINCIPAL FIXO */}
+      <header className="bg-white border-b border-slate-100 z-[100] sticky top-0 w-full shadow-sm">
+        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
           
           {/* LOGO */}
           <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => setActiveGroupId(null)}>
@@ -148,27 +147,31 @@ export default function App() {
             </div>
           </div>
 
-          {/* LISTA DE GRUPOS (CARPETAS) */}
-          <div className="flex-1 w-full overflow-x-auto no-scrollbar py-2">
-            <SearchGroupsList 
-                groups={searchGroups} 
-                activeGroupId={activeGroupId} 
-                onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
-            />
-          </div>
-
           {/* PERFIL Y LOGOUT */}
           <div className="flex items-center gap-4 pl-4 border-l border-slate-100 shrink-0">
             <div className="hidden lg:flex flex-col items-end">
               <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{session.user.email.split('@')[0]}</span>
               <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Online</span>
             </div>
-            <button onClick={() => supabase.auth.signOut()} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+            <button onClick={() => supabase.auth.signOut()} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
               <LogOut size={20} />
             </button>
           </div>
         </div>
       </header>
+
+      {/* SECCIÓN DE CARPETAS (Separada para evitar desfases) */}
+      <nav className="bg-white/50 backdrop-blur-md border-b border-slate-100 sticky top-20 z-[90] py-4">
+        <div className="max-w-[1600px] mx-auto px-6">
+          <div className="overflow-x-auto no-scrollbar">
+            <SearchGroupsList 
+                groups={searchGroups} 
+                activeGroupId={activeGroupId} 
+                onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
+            />
+          </div>
+        </div>
+      </nav>
 
       <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-10 relative">
         {selectedProperty ? (
@@ -178,10 +181,11 @@ export default function App() {
           }} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
         ) : activeGroupId ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-50">
+            {/* Cabecera del Grupo */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-50">
               <div className="flex items-center gap-4">
-                 <button onClick={() => setActiveGroupId(null)} className="p-2 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 transition-all">
-                    <ArrowRight size={18} className="rotate-180" />
+                 <button onClick={() => setActiveGroupId(null)} className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 transition-all">
+                    <ArrowRight size={20} className="rotate-180" />
                  </button>
                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">
                   {searchGroups.find(g => g.id === activeGroupId)?.name}
@@ -190,7 +194,7 @@ export default function App() {
               <div className="relative group w-full md:w-auto">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                 <input type="text" placeholder="Buscar en este grupo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full md:w-64 pl-11 pr-6 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all" />
+                  className="w-full md:w-80 pl-11 pr-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner" />
               </div>
             </div>
 
@@ -204,8 +208,8 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* VISTA BIENVENIDA LIMPIA */
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-6 animate-in fade-in zoom-in duration-1000">
+          /* VISTA BIENVENIDA */
+          <div className="flex flex-col items-center justify-center min-h-[40vh] text-center space-y-6 animate-in fade-in zoom-in duration-1000">
               <div className="relative">
                 <div className="absolute -inset-4 bg-indigo-500/10 blur-3xl rounded-full"></div>
                 <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative">
