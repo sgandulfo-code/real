@@ -4,7 +4,7 @@ import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
 import SearchGroupsList from './components/SearchGroupsList'; 
-import { Building2, Loader2, Search, LogOut, User, Mail, Lock, ArrowRight, LayoutGrid, MousePointer2 } from 'lucide-react';
+import { Building2, Loader2, Search, LogOut, Mail, Lock, ArrowRight, LayoutGrid, MousePointer2 } from 'lucide-react';
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -29,12 +29,10 @@ export default function App() {
       if (session) loadData();
       else setLoading(false);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) loadData();
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -46,9 +44,7 @@ export default function App() {
         ? await supabase.auth.signUp({ email, password })
         : await supabase.auth.signInWithPassword({ email, password });
       if (error) alert(error.message);
-    } finally {
-      setAuthLoading(false);
-    }
+    } finally { setAuthLoading(false); }
   };
 
   const loadData = async () => {
@@ -56,7 +52,6 @@ export default function App() {
       setLoading(true);
       const { data: g } = await supabase.from('search_groups').select('*').order('created_at', { ascending: false });
       const { data: p } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
-      
       if (p && g) {
         const props: Property[] = p.map(x => ({
           id: x.id, searchGroupId: x.group_id, url: x.url, title: x.title || 'Propiedad',
@@ -69,8 +64,6 @@ export default function App() {
         }));
         setAllProperties(props);
         setSearchGroups(g.map(group => ({ ...group, propertyCount: props.filter(pr => pr.searchGroupId === group.id).length })));
-        
-        if (!activeGroupId) setActiveGroupId(null);
       }
     } finally { setLoading(false); }
   };
@@ -82,151 +75,136 @@ export default function App() {
   }, [allProperties, activeGroupId, searchTerm, statusFilter]);
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-      <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
-      <span className="font-black text-xs uppercase tracking-widest text-slate-400">Iniciando PropTrack AI...</span>
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
     </div>
   );
 
   if (!session) return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6 font-sans">
-      <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl border border-slate-100">
-        <div className="flex flex-col items-center mb-10">
-          <div className="bg-indigo-600 p-4 rounded-3xl text-white shadow-xl shadow-indigo-100 mb-4">
-            <Building2 size={32} />
+    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100">
+        <div className="flex flex-col items-center mb-8">
+          <div className="bg-indigo-600 p-3 rounded-2xl text-white mb-4">
+            <Building2 size={28} />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Bienvenido</h1>
-          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Tamara Edition</p>
+          <h1 className="text-2xl font-black text-slate-900">PropTrack AI</h1>
         </div>
-
         <form onSubmit={handleAuth} className="space-y-4">
-          <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
-            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-600" required />
-          </div>
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
-            <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-600" required />
-          </div>
-          <button type="submit" disabled={authLoading}
-            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
-            {authLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión')}
-            <ArrowRight size={20} />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+            className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
+          <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)}
+            className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl outline-none font-bold" required />
+          <button type="submit" className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg">
+            {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
           </button>
         </form>
-
-        <p className="text-center mt-8 text-slate-400 font-bold text-sm cursor-pointer hover:text-indigo-600 transition-colors"
-          onClick={() => setIsRegistering(!isRegistering)}>
-          {isRegistering ? '¿Ya tienes cuenta? Entra aquí' : '¿No tienes cuenta? Regístrate'}
+        <p className="text-center mt-6 text-slate-400 font-bold text-sm cursor-pointer" onClick={() => setIsRegistering(!isRegistering)}>
+          {isRegistering ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}
         </p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
-      <style>{`
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
-
-      {/* HEADER PRINCIPAL FIXO */}
-      <header className="bg-white border-b border-slate-100 z-[100] sticky top-0 w-full shadow-sm">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900 overflow-x-hidden">
+      
+      {/* HEADER FIJO SUPERIOR */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-[100] w-full">
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-          
-          {/* LOGO */}
-          <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => setActiveGroupId(null)}>
-            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-50">
-              <Building2 size={24} />
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setActiveGroupId(null); setSelectedProperty(null); }}>
+            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-100">
+              <Building2 size={22} />
             </div>
-            <div className="hidden sm:block">
-              <h1 className="font-black text-lg leading-none">PropTrack AI</h1>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</p>
+            <div>
+              <h1 className="font-black text-lg leading-none tracking-tighter">PropTrack AI</h1>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em]">Tamara Edition</p>
             </div>
           </div>
 
-          {/* PERFIL Y LOGOUT */}
-          <div className="flex items-center gap-4 pl-4 border-l border-slate-100 shrink-0">
-            <div className="hidden lg:flex flex-col items-end">
-              <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{session.user.email.split('@')[0]}</span>
-              <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Online</span>
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex flex-col items-end">
+               <span className="text-[10px] font-black uppercase">{session.user.email.split('@')[0]}</span>
+               <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Online</span>
             </div>
-            <button onClick={() => supabase.auth.signOut()} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+            <button onClick={() => supabase.auth.signOut()} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
               <LogOut size={20} />
             </button>
           </div>
         </div>
       </header>
 
-      {/* SECCIÓN DE CARPETAS (Separada para evitar desfases) */}
-      <nav className="bg-white/50 backdrop-blur-md border-b border-slate-100 sticky top-20 z-[90] py-4">
-        <div className="max-w-[1600px] mx-auto px-6">
-          <div className="overflow-x-auto no-scrollbar">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-6 relative">
+        
+        {/* LISTA DE CARPETAS: Solo se muestra si NO hay una propiedad seleccionada */}
+        {!selectedProperty && (
+          <div className="mb-12 relative z-10">
             <SearchGroupsList 
-                groups={searchGroups} 
-                activeGroupId={activeGroupId} 
-                onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
+              groups={searchGroups} 
+              activeGroupId={activeGroupId} 
+              onSelectGroup={(id) => {
+                setActiveGroupId(id);
+                setSelectedProperty(null);
+              }} 
             />
           </div>
-        </div>
-      </nav>
+        )}
 
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-10 relative">
         {selectedProperty ? (
-          <PropertyDetails property={selectedProperty} onUpdate={(upd: any) => {
-            setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
-            supabase.from('properties').update({ title: upd.title, status: upd.status }).eq('id', upd.id);
-          }} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <PropertyDetails 
+              property={selectedProperty} 
+              onBack={() => setSelectedProperty(null)} 
+              onUpdate={(upd: any) => setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p))}
+              onDelete={() => {}} 
+            />
+          </div>
         ) : activeGroupId ? (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Cabecera del Grupo */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-50">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
               <div className="flex items-center gap-4">
-                 <button onClick={() => setActiveGroupId(null)} className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 transition-all">
+                 <button onClick={() => setActiveGroupId(null)} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:text-indigo-600 transition-colors">
                     <ArrowRight size={20} className="rotate-180" />
                  </button>
-                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-                  {searchGroups.find(g => g.id === activeGroupId)?.name}
-                </h2>
+                 <h2 className="text-3xl font-black tracking-tight text-slate-900">
+                    {searchGroups.find(g => g.id === activeGroupId)?.name}
+                 </h2>
               </div>
-              <div className="relative group w-full md:w-auto">
+              <div className="relative w-full md:w-80">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <input type="text" placeholder="Buscar en este grupo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full md:w-80 pl-11 pr-6 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-inner" />
+                <input 
+                  type="text" 
+                  placeholder="Buscar en este proyecto..." 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-11 pr-6 py-3.5 bg-slate-50 border-none rounded-2xl font-bold outline-none focus:ring-2 focus:ring-indigo-600/10" 
+                />
               </div>
             </div>
 
-            <div className="relative">
-              <Dashboard 
-                groupName={searchGroups.find(g => g.id === activeGroupId)?.name || ''}
-                properties={filtered} 
-                onSelect={(id) => setSelectedProperty(allProperties.find(p => p.id === id) || null)}
-                onUpdateGroup={() => {}} 
-              />
-            </div>
+            <Dashboard 
+              groupName={searchGroups.find(g => g.id === activeGroupId)?.name || ''}
+              properties={filtered} 
+              onSelect={(id) => setSelectedProperty(allProperties.find(p => p.id === id) || null)}
+              onUpdateGroup={() => {}} 
+            />
           </div>
         ) : (
-          /* VISTA BIENVENIDA */
-          <div className="flex flex-col items-center justify-center min-h-[40vh] text-center space-y-6 animate-in fade-in zoom-in duration-1000">
-              <div className="relative">
-                <div className="absolute -inset-4 bg-indigo-500/10 blur-3xl rounded-full"></div>
-                <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative">
-                   <LayoutGrid size={64} className="text-indigo-600 mx-auto mb-6 opacity-20" />
-                   <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">
-                     ¡Todo listo, {session.user.email.split('@')[0]}!
-                   </h2>
-                   <p className="text-slate-400 font-medium max-w-sm mx-auto leading-relaxed">
-                     Selecciona una de tus carpetas de búsqueda arriba para ver las propiedades analizadas.
-                   </p>
-                   
-                   <div className="mt-10 flex items-center justify-center gap-2 text-indigo-500 font-black text-xs uppercase tracking-[0.2em] animate-bounce">
-                      <MousePointer2 size={16} />
-                      Elige un grupo arriba
-                   </div>
-                </div>
-              </div>
+          /* VISTA BIENVENIDA (Captura 4) */
+          <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in duration-1000">
+            <div className="bg-white p-14 rounded-[3.5rem] shadow-2xl border border-slate-50 max-w-lg relative">
+               <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white p-4 rounded-3xl shadow-xl">
+                  <LayoutGrid size={32} />
+               </div>
+               <h2 className="text-4xl font-black text-slate-900 mb-4 mt-4 tracking-tighter">
+                 ¡Todo listo, {session.user.email.split('@')[0]}!
+               </h2>
+               <p className="text-slate-400 font-medium leading-relaxed text-lg">
+                 Selecciona una de tus carpetas de búsqueda arriba para ver las propiedades analizadas.
+               </p>
+               <div className="mt-10 flex items-center justify-center gap-2 text-indigo-500 font-black text-xs uppercase tracking-[0.3em] animate-bounce">
+                  <MousePointer2 size={16} /> ELIGE UN GRUPO
+               </div>
+            </div>
           </div>
         )}
       </main>
