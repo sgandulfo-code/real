@@ -55,63 +55,64 @@ export default function App() {
   }, [allProperties, activeGroupId, searchTerm, statusFilter]);
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
-      <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-4" />
-      <p className="text-slate-400 font-black text-[10px] tracking-widest uppercase">Cargando PropTrack AI...</p>
+    <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', backgroundColor:'#f8fafc', fontFamily:'sans-serif'}}>
+      <Loader2 style={{width:'40px', height:'40px', color:'#4f46e5', animation:'spin 1s linear infinite'}} />
+      <p style={{marginTop:'16px', color:'#94a3b8', fontWeight:'900', fontSize:'10px', letterSpacing:'0.1em'}}>CARGANDO PROPTRACK AI...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-200">
-              <Building2 className="w-6 h-6" />
+    <div style={{minHeight:'100vh', backgroundColor:'#F8FAFC', color:'#0f172a', fontFamily:'sans-serif'}}>
+      <header style={{backgroundColor:'white', borderBottom:'1px solid #f1f5f9', position:'sticky', top:0, zIndex:50, padding:'0 24px'}}>
+        <div style={{maxWidth:'1600px', margin:'0 auto', height:'80px', display:'flex', alignItems:'center', justifyContent:'between'}}>
+          <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+            <div style={{backgroundColor:'#4f46e5', padding:'10px', borderRadius:'16px', color:'white'}}>
+              <Building2 size={24} />
             </div>
-            <div className="hidden sm:block">
-              <span className="font-black text-xl tracking-tighter block leading-none">PropTrack AI</span>
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</span>
+            <div>
+              <span style={{fontWeight:900, fontSize:'20px', letterSpacing:'-0.05em', display:'block'}}>PropTrack AI</span>
+              <span style={{fontSize:'9px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase'}}>Tamara Edition</span>
             </div>
           </div>
-          <SearchGroupsList groups={searchGroups} activeGroupId={activeGroupId} onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} />
+          <div style={{marginLeft:'auto'}}>
+            <SearchGroupsList groups={searchGroups} activeGroupId={activeGroupId} onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} />
+          </div>
         </div>
       </header>
 
-      <main className="p-6 md:p-10 max-w-[1600px] mx-auto">
+      <main style={{padding:'40px 24px', maxWidth:'1600px', margin:'0 auto'}}>
         {selectedProperty ? (
           <PropertyDetails property={selectedProperty} onUpdate={handleUpdate} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
         ) : (
-          <div className="space-y-10">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+          <div>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'40px', flexWrap:'wrap', gap:'20px'}}>
               <div>
-                <h1 className="text-5xl font-black text-slate-900 tracking-tight mb-2">
+                <h1 style={{fontSize:'48px', fontWeight:900, letterSpacing:'-0.05em', margin:0}}>
                   {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
                 </h1>
-                <p className="text-slate-400 font-semibold text-lg">Visualizando {filtered.length} propiedades.</p>
+                <p style={{color:'#94a3b8', fontWeight:600, fontSize:'18px', margin:'8px 0 0 0'}}>Tienes {filtered.length} propiedades.</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                  <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                    className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] w-full md:w-72 outline-none focus:border-indigo-500 font-bold text-slate-600 shadow-sm transition-all" />
-                </div>
-                <select className="bg-white border border-slate-200 rounded-[1.5rem] px-6 py-4 font-bold text-slate-600 outline-none shadow-sm cursor-pointer" value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
+              <div style={{display:'flex', gap:'12px'}}>
+                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  style={{padding:'16px 24px', borderRadius:'24px', border:'1px solid #e2e8f0', width:'280px', fontWeight:700, outline:'none'}} />
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}
+                  style={{padding:'16px 24px', borderRadius:'24px', border:'1px solid #e2e8f0', backgroundColor:'white', fontWeight:700, cursor:'pointer'}}>
                   <option value="ALL">TODOS</option>
                   {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
 
-            {filtered.length > 0 ? (
-              <Dashboard activeGroup={searchGroups.find(g => g.id === activeGroupId)!} properties={filtered} onSelectProperty={setSelectedProperty} onUpdateProperty={handleUpdate} />
-            ) : (
-              <div className="bg-white rounded-[3rem] p-32 text-center border-2 border-dashed border-slate-100">
-                <Building2 className="w-12 h-12 text-slate-200 mx-auto mb-4 opacity-30" />
-                <h3 className="text-xl font-black text-slate-400">No hay departamentos en esta zona</h3>
-              </div>
-            )}
+            <div style={{marginTop:'20px'}}>
+              {filtered.length > 0 ? (
+                <Dashboard activeGroup={searchGroups.find(g => g.id === activeGroupId)!} properties={filtered} onSelectProperty={setSelectedProperty} onUpdateProperty={handleUpdate} />
+              ) : (
+                <div style={{backgroundColor:'white', borderRadius:'48px', padding:'100px', textAlign:'center', border:'2px dashed #f1f5f9'}}>
+                   <h3 style={{color:'#94a3b8', fontWeight:900}}>Sin resultados en esta zona</h3>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
