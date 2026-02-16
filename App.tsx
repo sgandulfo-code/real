@@ -4,7 +4,7 @@ import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
 import SearchGroupsList from './components/SearchGroupsList'; 
-import { Building2, Loader2, Search, LogOut, User, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Building2, Loader2, Search, LogOut, User, Mail, Lock, ArrowRight, LayoutGrid, MousePointer2 } from 'lucide-react';
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -69,7 +69,9 @@ export default function App() {
         }));
         setAllProperties(props);
         setSearchGroups(g.map(group => ({ ...group, propertyCount: props.filter(pr => pr.searchGroupId === group.id).length })));
-        if (g.length > 0 && !activeGroupId) setActiveGroupId(g[0].id);
+        
+        // CAMBIO CLAVE: Ya no seleccionamos automáticamente el primer grupo g[0]
+        if (!activeGroupId) setActiveGroupId(null);
       }
     } finally { setLoading(false); }
   };
@@ -125,10 +127,10 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
       <header className="bg-white border-b border-slate-100 z-50 sticky top-0 shadow-sm">
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveGroupId(null)}>
             <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-50">
               <Building2 size={24} />
             </div>
@@ -160,29 +162,54 @@ export default function App() {
             setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
             supabase.from('properties').update({ title: upd.title, status: upd.status }).eq('id', upd.id);
           }} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
-        ) : (
-          <div className="space-y-8">
+        ) : activeGroupId ? (
+          // VISTA CUANDO HAY UN GRUPO SELECCIONADO
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight">
-                {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
-              </h2>
+              <div className="flex items-center gap-4">
+                 <button onClick={() => setActiveGroupId(null)} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all">
+                    <ArrowRight size={18} className="rotate-180" />
+                 </button>
+                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                  {searchGroups.find(g => g.id === activeGroupId)?.name}
+                </h2>
+              </div>
               <div className="relative group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                <input type="text" placeholder="Buscar en este grupo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                   className="pl-11 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-64 outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm" />
               </div>
             </div>
 
             <div className="relative">
-              {activeGroupId && (
-                <Dashboard 
-                  groupName={searchGroups.find(g => g.id === activeGroupId)?.name || ''}
-                  properties={filtered} 
-                  onSelect={(id) => setSelectedProperty(allProperties.find(p => p.id === id) || null)}
-                  onUpdateGroup={() => {}} 
-                />
-              )}
+              <Dashboard 
+                groupName={searchGroups.find(g => g.id === activeGroupId)?.name || ''}
+                properties={filtered} 
+                onSelect={(id) => setSelectedProperty(allProperties.find(p => p.id === id) || null)}
+                onUpdateGroup={() => {}} 
+              />
             </div>
+          </div>
+        ) : (
+          // VISTA INICIAL (SIN GRUPO SELECCIONADO)
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-in fade-in zoom-in duration-1000">
+             <div className="relative">
+                <div className="absolute -inset-4 bg-indigo-500/10 blur-3xl rounded-full"></div>
+                <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 relative">
+                   <LayoutGrid size={64} className="text-indigo-600 mx-auto mb-6 opacity-20" />
+                   <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">
+                     ¡Todo listo, {session.user.email.split('@')[0]}!
+                   </h2>
+                   <p className="text-slate-400 font-medium max-w-sm mx-auto leading-relaxed">
+                     Selecciona una de tus carpetas de búsqueda arriba para ver las propiedades analizadas.
+                   </p>
+                   
+                   <div className="mt-10 flex items-center justify-center gap-2 text-indigo-500 font-black text-xs uppercase tracking-[0.2em] animate-bounce">
+                      <MousePointer2 size={16} />
+                      Elige un grupo arriba
+                   </div>
+                </div>
+             </div>
           </div>
         )}
       </main>
