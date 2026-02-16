@@ -89,49 +89,49 @@ export default function App() {
             className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl outline-none" required />
           <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)}
             className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl outline-none" required />
-          <button type="submit" className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg">
-            {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+          <button type="submit" className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold">
+            {isRegistering ? 'Registrarse' : 'Entrar'}
           </button>
         </form>
-        <p className="text-center mt-6 text-slate-400 cursor-pointer text-sm font-bold" onClick={() => setIsRegistering(!isRegistering)}>
-          {isRegistering ? '¿Ya tienes cuenta? Entra' : '¿No tienes cuenta? Regístrate'}
+        <p className="text-center mt-6 text-slate-400 cursor-pointer text-sm" onClick={() => setIsRegistering(!isRegistering)}>
+          {isRegistering ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}
         </p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col text-slate-900">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
       
-      {/* 1. HEADER (Marca y Logout) */}
-      <header className="bg-white border-b border-slate-200 py-4">
-        <div className="max-w-[1600px] mx-auto px-6 flex items-center justify-between">
+      {/* HEADER SIMPLE - Sin sticky que bloquee clics */}
+      <header className="bg-white border-b border-slate-200">
+        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setActiveGroupId(null); setSelectedProperty(null); }}>
             <Building2 className="text-indigo-600" size={24} />
-            <span className="font-black text-xl tracking-tighter">PropTrack AI</span>
+            <span className="font-black text-lg">PropTrack AI</span>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="text-slate-400 hover:text-red-500 p-2">
-            <LogOut size={22} />
+          <button onClick={() => supabase.auth.signOut()} className="text-slate-400 hover:text-red-500">
+            <LogOut size={20} />
           </button>
         </div>
       </header>
 
-      {/* 2. CARPETAS (Remax Class, etc) - Ahora tienen su lugar sagrado */}
-      <div className="bg-white border-b border-slate-100 py-4">
-        <div className="max-w-[1600px] mx-auto px-6">
+      {/* CONTENIDO PRINCIPAL */}
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-6">
+        
+        {/* LAS CARPETAS (Grupos como Remax Class) */}
+        <section className="mb-10">
            <SearchGroupsList 
              groups={searchGroups} 
              activeGroupId={activeGroupId} 
              onSelectGroup={(id) => { 
+                console.log("Cambiando a grupo:", id); // Para debug
                 setActiveGroupId(id); 
                 setSelectedProperty(null); 
              }} 
            />
-        </div>
-      </div>
+        </section>
 
-      {/* 3. ÁREA DE TRABAJO */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto p-6">
         {selectedProperty ? (
           <PropertyDetails 
             property={selectedProperty} 
@@ -141,16 +141,15 @@ export default function App() {
           />
         ) : activeGroupId ? (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-              <h2 className="text-3xl font-black text-slate-900">
-                {searchGroups.find(g => g.id === activeGroupId)?.name}
-              </h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-black">{searchGroups.find(g => g.id === activeGroupId)?.name}</h2>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input type="text" placeholder="Buscar propiedad..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none w-full md:w-72 shadow-sm" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg outline-none" />
               </div>
             </div>
+            
             <Dashboard 
               groupName={searchGroups.find(g => g.id === activeGroupId)?.name || ''}
               properties={filtered} 
@@ -159,11 +158,11 @@ export default function App() {
             />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="bg-white p-12 rounded-[3rem] shadow-sm border border-slate-100 max-w-md">
-               <LayoutGrid size={48} className="text-indigo-100 mx-auto mb-6" />
-               <h2 className="text-2xl font-black text-slate-900">Bienvenida, Tamara</h2>
-               <p className="text-slate-400 mt-3 font-medium">Haz clic en una de tus carpetas arriba para comenzar a gestionar propiedades.</p>
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="text-center bg-white p-10 rounded-3xl border border-slate-100 shadow-sm">
+               <LayoutGrid size={40} className="text-slate-200 mx-auto mb-4" />
+               <h2 className="text-xl font-bold">Selecciona una carpeta arriba</h2>
+               <p className="text-slate-400 mt-2">Haz clic en un proyecto (como Remax Class) para empezar.</p>
             </div>
           </div>
         )}
