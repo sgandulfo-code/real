@@ -9,6 +9,7 @@ import { Building2, Loader2, Search, LogOut, Mail, Lock, ArrowRight, LayoutGrid,
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 export default function App() {
+  // --- TUS ESTADOS ORIGINALES ---
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
@@ -23,16 +24,19 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<PropertyStatus | 'ALL'>('ALL');
 
+  // --- TU LÓGICA DE SUPABASE ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadData();
       else setLoading(false);
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) loadData();
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -44,7 +48,9 @@ export default function App() {
         ? await supabase.auth.signUp({ email, password })
         : await supabase.auth.signInWithPassword({ email, password });
       if (error) alert(error.message);
-    } finally { setAuthLoading(false); }
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const loadData = async () => {
@@ -52,6 +58,7 @@ export default function App() {
       setLoading(true);
       const { data: g } = await supabase.from('search_groups').select('*').order('created_at', { ascending: false });
       const { data: p } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
+      
       if (p && g) {
         const props: Property[] = p.map(x => ({
           id: x.id, searchGroupId: x.group_id, url: x.url, title: x.title || 'Propiedad',
@@ -64,89 +71,116 @@ export default function App() {
         }));
         setAllProperties(props);
         setSearchGroups(g.map(group => ({ ...group, propertyCount: props.filter(pr => pr.searchGroupId === group.id).length })));
+        
+        if (!activeGroupId) setActiveGroupId(null);
       }
     } finally { setLoading(false); }
   };
 
+  // --- TU FILTRADO USEMEMO ---
   const filtered = useMemo(() => {
     return allProperties.filter(p => p.searchGroupId === activeGroupId && 
       (p.title.toLowerCase().includes(searchTerm.toLowerCase())) && 
       (statusFilter === 'ALL' || p.status === statusFilter));
   }, [allProperties, activeGroupId, searchTerm, statusFilter]);
 
+  // --- VISTA DE CARGA ---
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
     </div>
   );
 
+  // --- VISTA LOGIN ---
   if (!session) return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-3xl p-10 shadow-xl border border-slate-100">
-        <h1 className="text-2xl font-black text-center mb-8">PropTrack AI</h1>
+      <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-100">
+        <div className="flex flex-col items-center mb-8">
+          <div className="bg-indigo-600 p-3 rounded-2xl text-white mb-4 shadow-lg shadow-indigo-100">
+            <Building2 size={28} />
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">PropTrack AI</h1>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Tamara Edition</p>
+        </div>
+
         <form onSubmit={handleAuth} className="space-y-4">
           <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
-            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl outline-none" required />
+            className="w-full px-5 py-4 bg-slate-50 border-none rounded-xl outline-none font-bold text-slate-600" required />
           <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl outline-none" required />
-          <button type="submit" className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold">
-            {isRegistering ? 'Registrarse' : 'Entrar'}
+            className="w-full px-5 py-4 bg-slate-50 border-none rounded-xl outline-none font-bold text-slate-600" required />
+          <button type="submit" disabled={authLoading}
+            className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+            {authLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (isRegistering ? 'Crear Cuenta' : 'Entrar')}
+            <ArrowRight size={18} />
           </button>
         </form>
-        <p className="text-center mt-6 text-slate-400 cursor-pointer text-sm" onClick={() => setIsRegistering(!isRegistering)}>
-          {isRegistering ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?'}
+        <p className="text-center mt-6 text-slate-400 font-bold text-xs cursor-pointer hover:text-indigo-600" onClick={() => setIsRegistering(!isRegistering)}>
+          {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
         </p>
       </div>
     </div>
   );
 
+  // --- RENDER PRINCIPAL (CORREGIDO) ---
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
       
-      {/* HEADER SIMPLE - Sin sticky que bloquee clics */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setActiveGroupId(null); setSelectedProperty(null); }}>
-            <Building2 className="text-indigo-600" size={24} />
-            <span className="font-black text-lg">PropTrack AI</span>
+      {/* HEADER: Solo Marca y Usuario */}
+      <header className="bg-white border-b border-slate-100 w-full relative z-10">
+        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setActiveGroupId(null); setSelectedProperty(null); }}>
+            <div className="bg-indigo-600 p-2 rounded-xl text-white">
+              <Building2 size={24} />
+            </div>
+            <div>
+              <h1 className="font-black text-lg tracking-tighter">PropTrack AI</h1>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Tamara Edition</p>
+            </div>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="text-slate-400 hover:text-red-500">
+          <button onClick={() => supabase.auth.signOut()} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
             <LogOut size={20} />
           </button>
         </div>
       </header>
 
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto p-6">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-8">
         
-        {/* LAS CARPETAS (Grupos como Remax Class) */}
-        <section className="mb-10">
+        {/* FILA DE CARPETAS (GRUPOS) */}
+        <div className="mb-8 overflow-x-auto no-scrollbar py-2">
            <SearchGroupsList 
              groups={searchGroups} 
              activeGroupId={activeGroupId} 
-             onSelectGroup={(id) => { 
-                console.log("Cambiando a grupo:", id); // Para debug
-                setActiveGroupId(id); 
-                setSelectedProperty(null); 
-             }} 
+             onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
            />
-        </section>
+        </div>
 
         {selectedProperty ? (
+          /* DETALLES DE PROPIEDAD */
           <PropertyDetails 
             property={selectedProperty} 
+            onUpdate={(upd: any) => {
+              setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
+              supabase.from('properties').update({ title: upd.title, status: upd.status }).eq('id', upd.id);
+            }} 
             onBack={() => setSelectedProperty(null)} 
-            onUpdate={(upd: any) => setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p))}
             onDelete={() => {}} 
           />
         ) : activeGroupId ? (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-black">{searchGroups.find(g => g.id === activeGroupId)?.name}</h2>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+          /* DASHBOARD DEL GRUPO ACTIVO */
+          <div className="space-y-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white p-6 rounded-[2rem] border border-slate-50 shadow-sm">
+              <div className="flex items-center gap-4">
+                 <button onClick={() => setActiveGroupId(null)} className="p-2 bg-slate-50 text-slate-400 rounded-lg">
+                    <ArrowRight size={18} className="rotate-180" />
+                 </button>
+                 <h2 className="text-3xl font-black tracking-tight">
+                    {searchGroups.find(g => g.id === activeGroupId)?.name}
+                 </h2>
+              </div>
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                 <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg outline-none" />
+                  className="w-full pl-11 pr-6 py-3 bg-slate-50 border-none rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-600/10" />
               </div>
             </div>
             
@@ -158,11 +192,19 @@ export default function App() {
             />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="text-center bg-white p-10 rounded-3xl border border-slate-100 shadow-sm">
-               <LayoutGrid size={40} className="text-slate-200 mx-auto mb-4" />
-               <h2 className="text-xl font-bold">Selecciona una carpeta arriba</h2>
-               <p className="text-slate-400 mt-2">Haz clic en un proyecto (como Remax Class) para empezar.</p>
+          /* VISTA INICIAL */
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="bg-white p-14 rounded-[3.5rem] shadow-xl border border-slate-50 max-w-md relative">
+               <div className="bg-indigo-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-6 text-indigo-600">
+                  <LayoutGrid size={32} />
+               </div>
+               <h2 className="text-3xl font-black text-slate-900 mb-3">¡Hola de nuevo!</h2>
+               <p className="text-slate-400 font-medium leading-relaxed">
+                 Todo está actualizado. Por favor, selecciona una carpeta arriba para ver las propiedades.
+               </p>
+               <div className="mt-8 flex items-center justify-center gap-2 text-indigo-500 font-black text-[10px] tracking-[0.2em] animate-bounce">
+                  <MousePointer2 size={14} /> ELIGE UNA CARPETA
+               </div>
             </div>
           </div>
         )}
