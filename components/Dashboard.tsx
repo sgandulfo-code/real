@@ -1,132 +1,112 @@
 import React, { useState } from 'react';
-import { 
-  Edit3, 
-  Home, 
-  Map as MapIcon, 
-  LayoutGrid, 
-  Check, 
-  Bed, 
-  Maximize, 
-  ChevronRight,
-  MapPin
-} from 'lucide-react';
-import MapView from './MapView';
+import { Search, Plus, Loader2, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { Property } from '../types';
 
-const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [newName, setNewName] = useState(groupName);
-  const [viewMode, setViewMode] = useState('grid');
+interface DashboardProps {
+  groupName: string;
+  properties: Property[];
+  onSelect: (id: string) => void;
+  onUpdateGroup: () => void;
+}
 
-  const handleUpdate = () => {
-    if (newName.trim()) {
-      onUpdateGroup(newName);
-      setIsEditing(false);
+export default function Dashboard({ groupName, properties, onSelect }: DashboardProps) {
+  const [url, setUrl] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleAnalyze = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url) return;
+    
+    setIsAnalyzing(true);
+    try {
+      // Aquí llama a tu API que me pasaste arriba
+      console.log("Analizando URL:", url);
+      // ... lógica para guardar en Supabase después de analizar
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsAnalyzing(false);
+      setUrl('');
     }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       
-      {/* --- SELECTOR DE VISTA Y CONTROLES SUPERIORES --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
-            <button 
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:bg-slate-50'}`}
-            >
-              <LayoutGrid size={16} /> LISTA
-            </button>
-            <button 
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:bg-slate-50'}`}
-            >
-              <MapIcon size={16} /> MAPA
-            </button>
+      {/* SECCIÓN 1: EL CAMPO DE URL (Lo que te estaba faltando) */}
+      <section className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+        <div className="max-w-3xl mx-auto text-center space-y-6">
+          <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest">
+            <Plus size={14} /> Nueva Captura
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-slate-400">
-          <Home size={16} />
-          <span className="text-sm font-bold"><span className="text-slate-900">{properties.length}</span> Propiedades encontradas</span>
-        </div>
-      </div>
-
-      {/* --- CONTENIDO DINÁMICO --- */}
-      {viewMode === 'map' ? (
-        <div className="w-full h-[600px] rounded-[2.5rem] overflow-hidden border-8 border-white shadow-xl bg-slate-100">
-          <MapView properties={properties} onSelectProperty={onSelect} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {properties.map((property) => (
-            <div 
-              key={property.id}
-              onClick={() => onSelect(property.id)}
-              className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2"
-            >
-              {/* Imagen */}
-              <div className="aspect-[4/3] relative overflow-hidden">
-                <img 
-                  src={property.thumbnail} 
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  alt={property.title}
-                  onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=800'; }}
-                />
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-sm">
-                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{property.sourceName}</span>
-                </div>
-                <div className="absolute bottom-4 left-4">
-                  <div className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-black shadow-lg">
-                    {property.price}
-                  </div>
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="p-7">
-                <h3 className="font-black text-slate-800 text-lg mb-4 line-clamp-1">{property.title}</h3>
-                
-                <div className="flex items-center justify-between border-t border-slate-50 pt-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Dorms</span>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Bed size={14} className="text-slate-400" />
-                        <span className="font-black text-sm text-slate-700">{property.bedrooms}</span>
-                      </div>
-                    </div>
-                    <div className="w-px h-6 bg-slate-100" />
-                    <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Sup</span>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <Maximize size={14} className="text-slate-400" />
-                        <span className="font-black text-sm text-slate-700">{property.sqft}m²</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                    <ChevronRight size={20} />
-                  </div>
-                </div>
-              </div>
+          <h3 className="text-2xl font-black text-slate-900">Analizar nueva propiedad</h3>
+          
+          <form onSubmit={handleAnalyze} className="relative group">
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors">
+              <LinkIcon size={20} />
             </div>
-          ))}
+            <input 
+              type="url" 
+              placeholder="Pega el link de Zonaprop, Argenprop, Remax..." 
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full pl-14 pr-40 py-5 bg-slate-50 border-2 border-transparent focus:border-indigo-600/10 focus:bg-white rounded-[2rem] outline-none font-bold text-slate-700 transition-all shadow-inner"
+              required
+            />
+            <button 
+              type="submit"
+              disabled={isAnalyzing}
+              className="absolute right-2 top-2 bottom-2 px-8 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-indigo-600 transition-all disabled:bg-slate-200 flex items-center gap-2 shadow-lg"
+            >
+              {isAnalyzing ? (
+                <> <Loader2 size={18} className="animate-spin" /> Analizando... </>
+              ) : (
+                'Analizar'
+              )}
+            </button>
+          </form>
+          <p className="text-slate-400 text-xs font-medium italic">
+            Nuestra IA extraerá precio, metros y ubicación automáticamente.
+          </p>
+        </div>
+      </section>
 
-          {/* Estado vacío */}
-          {properties.length === 0 && (
-            <div className="col-span-full py-24 text-center border-4 border-dashed border-slate-100 rounded-[3rem]">
-              <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="text-slate-200" size={32} />
+      {/* SECCIÓN 2: LISTA DE PROPIEDADES YA ANALIZADAS */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {properties.length > 0 ? (
+            properties.map((property) => (
+              <div 
+                key={property.id}
+                onClick={() => onSelect(property.id)}
+                className="group bg-white rounded-[2rem] border border-slate-100 overflow-hidden hover:shadow-xl transition-all cursor-pointer"
+              >
+                <div className="aspect-[4/3] overflow-hidden relative">
+                  <img src={property.thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                    {property.sourceName}
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h4 className="font-black text-slate-800 mb-1 line-clamp-1">{property.title}</h4>
+                  <p className="text-slate-400 text-xs font-bold mb-4">{property.address}</p>
+                  <div className="flex items-center justify-between border-t border-slate-50 pt-4">
+                    <span className="text-lg font-black text-indigo-600">{property.price}</span>
+                    <span className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded-md uppercase text-slate-500">
+                      {property.status}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No hay propiedades en este grupo</p>
+            ))
+          ) : (
+            <div className="col-span-full py-20 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[3rem] flex flex-col items-center justify-center text-slate-400">
+              <AlertCircle size={40} className="mb-4 opacity-20" />
+              <p className="font-bold uppercase tracking-widest text-xs">No hay propiedades en este proyecto</p>
             </div>
           )}
         </div>
-      )}
+      </section>
     </div>
   );
-};
-
-export default Dashboard;
+}
