@@ -6,238 +6,110 @@ import PropertyDetails from './components/PropertyDetails';
 import SearchGroupsList from './components/SearchGroupsList'; 
 import { Building2, Loader2, Search } from 'lucide-react';
 
-// Credenciales de Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-function App() {
-  // --- ESTADOS PRINCIPALES ---
+export default function App() {
   const [loading, setLoading] = useState(true);
   const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  
-  // --- ESTADOS DE UI (Filtros y Búsqueda) ---
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<PropertyStatus | 'ALL'>('ALL');
 
-  // --- 1. CARGA INICIAL DE DATOS ---
-  useEffect(() => {
-    loadSupabaseData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const loadSupabaseData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      
-      const { data: groups, error: groupsError } = await supabase
-        .from('search_groups')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (groupsError) throw groupsError;
-
-      const { data: props, error: propsError } = await supabase
-        .from('properties')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (propsError) throw propsError;
-
-      const formattedProps: Property[] = props.map(p => ({
-        id: p.id,
-        searchGroupId: p.group_id,
-        url: p.url,
-        title: p.title || 'Propiedad sin título',
-        price: p.price || 'Consultar',
-        address: p.address || '',
-        lat: p.lat || -34.6037,
-        lng: p.lng || -58.3816,
-        sourceName: p.source_name || 'Inmobiliaria',
-        status: (p.status as PropertyStatus) || PropertyStatus.INTERESTED,
-        thumbnail: p.thumbnail,
-        favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(p.url).hostname}`,
-        rating: p.rating || 0,
-        bedrooms: p.bedrooms || 0,
-        bathrooms: p.bathrooms || 0,
-        sqft: p.sqft || 0,
-        operationType: p.operation_type || 'Venta',
-        propertyType: p.property_type || 'Departamento',
-        floorNumber: p.floor_number || '',
-        m2Covered: p.m2_covered || 0,
-        m2Uncovered: p.m2_uncovered || 0,
-        expenses: p.expenses || 0,
-        contactName: p.contact_name || '',
-        contactPhone: p.contact_phone || '',
-        comments: p.comments || '',
-        nextVisit: p.next_visit || '',
-        isFavorite: p.is_favorite || false,
-        createdAt: new Date(p.created_at).getTime()
-      }));
-
-      const formattedGroups: SearchGroup[] = groups.map(g => ({
-        id: g.id,
-        name: g.name,
-        description: g.description,
-        icon: g.icon || 'Home',
-        color: g.color || '#4f46e5',
-        propertyCount: formattedProps.filter(p => p.searchGroupId === g.id).length
-      }));
-
-      setSearchGroups(formattedGroups);
-      setAllProperties(formattedProps);
-      
-      if (formattedGroups.length > 0 && !activeGroupId) {
-        setActiveGroupId(formattedGroups[0].id);
+      const { data: g } = await supabase.from('search_groups').select('*').order('created_at', { ascending: false });
+      const { data: p } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
+      if (p && g) {
+        const props: Property[] = p.map(x => ({
+          id: x.id, searchGroupId: x.group_id, url: x.url, title: x.title || 'Propiedad',
+          price: x.price || 'Consultar', address: x.address || '', lat: x.lat || -34.6, lng: x.lng || -58.3,
+          sourceName: x.source_name || 'Inmo', status: x.status || PropertyStatus.INTERESTED,
+          favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(x.url).hostname}`,
+          m2Covered: x.m2_covered || 0, isFavorite: x.is_favorite || false, createdAt: new Date(x.created_at).getTime(),
+          rating: x.rating || 0, bedrooms: x.bedrooms || 0, bathrooms: x.bathrooms || 0, comments: x.comments || ''
+        }));
+        setAllProperties(props);
+        setSearchGroups(g.map(group => ({ ...group, propertyCount: props.filter(pr => pr.searchGroupId === group.id).length })));
+        if (g.length > 0 && !activeGroupId) setActiveGroupId(g[0].id);
       }
-
-    } catch (err) {
-      console.error("Error crítico en carga:", err);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  // --- 2. LÓGICA DE ACTUALIZACIÓN ---
-  const handleUpdateProperty = async (updatedProp: Property) => {
-    setAllProperties(prev => prev.map(p => p.id === updatedProp.id ? updatedProp : p));
-    
-    const { error } = await supabase
-      .from('properties')
-      .update({
-        group_id: updatedProp.searchGroupId, 
-        title: updatedProp.title,
-        price: updatedProp.price,
-        address: updatedProp.address,
-        comments: updatedProp.comments,
-        rating: updatedProp.rating,
-        status: updatedProp.status,
-        contact_name: updatedProp.contactName,
-        contact_phone: updatedProp.contactPhone,
-        next_visit: updatedProp.nextVisit,
-        is_favorite: updatedProp.isFavorite,
-        operation_type: updatedProp.operationType,
-        property_type: updatedProp.propertyType,
-        floor_number: updatedProp.floorNumber,
-        m2_covered: updatedProp.m2Covered,
-        m2_uncovered: updatedProp.m2Uncovered,
-        expenses: updatedProp.expenses
-      })
-      .eq('id', updatedProp.id);
-
-    if (error) console.error("Error al sincronizar con Supabase:", error.message);
+  const handleUpdate = async (upd: Property) => {
+    setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
+    await supabase.from('properties').update({ 
+      group_id: upd.searchGroupId, title: upd.title, price: upd.price, status: upd.status, 
+      is_favorite: upd.isFavorite, m2_covered: upd.m2Covered, comments: upd.comments 
+    }).eq('id', upd.id);
   };
 
-  // --- 3. ELIMINACIÓN ---
-  const handleDeleteProperty = async (id: string) => {
-    const { error } = await supabase.from('properties').delete().eq('id', id);
-    if (!error) {
-      setAllProperties(prev => prev.filter(p => p.id !== id));
-      setSelectedProperty(null);
-    }
-  };
-
-  // --- 4. FILTRADO DINÁMICO ---
-  const filteredProperties = useMemo(() => {
-    return allProperties.filter(p => {
-      const matchesGroup = p.searchGroupId === activeGroupId;
-      const matchesSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            p.address.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
-      return matchesGroup && matchesSearch && matchesStatus;
-    });
+  const filtered = useMemo(() => {
+    return allProperties.filter(p => p.searchGroupId === activeGroupId && 
+      (p.title.toLowerCase().includes(searchTerm.toLowerCase()) || p.address.toLowerCase().includes(searchTerm.toLowerCase())) && 
+      (statusFilter === 'ALL' || p.status === statusFilter));
   }, [allProperties, activeGroupId, searchTerm, statusFilter]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto" />
-          <p className="text-slate-400 font-bold tracking-widest uppercase text-[10px]">Cargando propiedades...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
+      <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mb-4" />
+      <p className="text-slate-400 font-black text-[10px] tracking-widest uppercase">Cargando PropTrack AI...</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
       <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
-        <div className="max-w-[1600px] mx-auto px-4 h-20 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-100">
+            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-200">
               <Building2 className="w-6 h-6" />
             </div>
-            <div>
-              <span className="font-black text-xl tracking-tight block leading-none">PropTrack AI</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</span>
+            <div className="hidden sm:block">
+              <span className="font-black text-xl tracking-tighter block leading-none">PropTrack AI</span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</span>
             </div>
           </div>
-          
-          <SearchGroupsList 
-            groups={searchGroups}
-            activeGroupId={activeGroupId}
-            onSelectGroup={(id) => {
-              setActiveGroupId(id);
-              setSelectedProperty(null);
-            }}
-          />
+          <SearchGroupsList groups={searchGroups} activeGroupId={activeGroupId} onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} />
         </div>
       </header>
 
-      <main className="p-4 md:p-8 max-w-[1600px] mx-auto">
+      <main className="p-6 md:p-10 max-w-[1600px] mx-auto">
         {selectedProperty ? (
-          <PropertyDetails 
-            property={selectedProperty}
-            onUpdate={handleUpdateProperty}
-            onBack={() => setSelectedProperty(null)}
-            onDelete={() => handleDeleteProperty(selectedProperty.id)}
-          />
+          <PropertyDetails property={selectedProperty} onUpdate={handleUpdate} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
         ) : (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-10">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
               <div>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+                <h1 className="text-5xl font-black text-slate-900 tracking-tight mb-2">
                   {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
                 </h1>
-                <p className="text-slate-500 font-medium">Tienes {filteredProperties.length} propiedades filtradas.</p>
+                <p className="text-slate-400 font-semibold text-lg">Visualizando {filtered.length} propiedades.</p>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="relative group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                  <input 
-                    type="text"
-                    placeholder="Buscar por título..."
-                    className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] w-full md:w-80 outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-bold text-slate-600"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                    className="pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-[1.5rem] w-full md:w-72 outline-none focus:border-indigo-500 font-bold text-slate-600 shadow-sm transition-all" />
                 </div>
-                <select 
-                  className="bg-white border border-slate-200 rounded-[1.5rem] px-6 py-4 font-black text-slate-600 outline-none cursor-pointer appearance-none"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                >
+                <select className="bg-white border border-slate-200 rounded-[1.5rem] px-6 py-4 font-bold text-slate-600 outline-none shadow-sm cursor-pointer" value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
                   <option value="ALL">TODOS</option>
-                  {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
+                  {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
 
-            {filteredProperties.length > 0 ? (
-              <Dashboard 
-                activeGroup={searchGroups.find(g => g.id === activeGroupId)!}
-                properties={filteredProperties}
-                onSelectProperty={setSelectedProperty}
-                onUpdateProperty={handleUpdateProperty}
-              />
+            {filtered.length > 0 ? (
+              <Dashboard activeGroup={searchGroups.find(g => g.id === activeGroupId)!} properties={filtered} onSelectProperty={setSelectedProperty} onUpdateProperty={handleUpdate} />
             ) : (
               <div className="bg-white rounded-[3rem] p-32 text-center border-2 border-dashed border-slate-100">
-                <Building2 className="w-16 h-16 text-slate-200 mx-auto mb-4 opacity-20" />
-                <h3 className="text-2xl font-black text-slate-400">Sin resultados</h3>
-                <p className="text-slate-300 font-medium">Intenta cambiar los filtros o la zona de búsqueda.</p>
+                <Building2 className="w-12 h-12 text-slate-200 mx-auto mb-4 opacity-30" />
+                <h3 className="text-xl font-black text-slate-400">No hay departamentos en esta zona</h3>
               </div>
             )}
           </div>
@@ -246,5 +118,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
