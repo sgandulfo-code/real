@@ -4,11 +4,12 @@ import { Property, PropertyStatus, SearchGroup } from './types';
 import Dashboard from './components/Dashboard';
 import PropertyDetails from './components/PropertyDetails';
 import SearchGroupsList from './components/SearchGroupsList'; 
-import { Building2, Loader2, Search } from 'lucide-react';
+import { Building2, Loader2, Search, LogOut, User } from 'lucide-react';
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 export default function App() {
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -17,7 +18,33 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<PropertyStatus | 'ALL'>('ALL');
 
-  useEffect(() => { loadData(); }, []);
+  // --- LÓGICA DE AUTENTICACIÓN ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadData();
+      else setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) loadData();
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+  };
 
   const loadData = async () => {
     try {
@@ -42,87 +69,111 @@ export default function App() {
     } finally { setLoading(false); }
   };
 
-  const handleUpdate = async (upd: Property) => {
-    setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
-    await supabase.from('properties').update({ 
-      group_id: upd.searchGroupId, title: upd.title, price: upd.price, status: upd.status, 
-      is_favorite: upd.isFavorite, m2_covered: upd.m2Covered, comments: upd.comments 
-    }).eq('id', upd.id);
-  };
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-indigo-600 uppercase tracking-widest">Cargando...</div>;
 
-  const filtered = useMemo(() => {
-    return allProperties.filter(p => p.searchGroupId === activeGroupId && 
-      (p.title.toLowerCase().includes(searchTerm.toLowerCase())) && 
-      (statusFilter === 'ALL' || p.status === statusFilter));
-  }, [allProperties, activeGroupId, searchTerm, statusFilter]);
+  // --- VISTA DE LOGIN SI NO HAY SESIÓN ---
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-100 text-center">
+          <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-lg">
+            <Building2 size={32} />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">PropTrack AI</h1>
+          <p className="text-slate-400 font-bold mb-8">Tamara Edition</p>
+          <button 
+            onClick={handleLogin}
+            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-3"
+          >
+            <img src="https://www.google.com/s2/favicons?sz=64&domain=google.com" className="w-5 h-5" alt="G" />
+            Entrar con Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-indigo-600">CARGANDO...</div>;
-
+  // --- VISTA PRINCIPAL CON USUARIO ---
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
-      {/* 1. HEADER FIJO CON LOS GRUPOS (CARPETAS) */}
-      <header className="bg-white border-b border-slate-100 z-50 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-6 h-auto py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3 self-start">
-              <div className="bg-indigo-600 p-2 rounded-xl text-white">
-                <Building2 size={24} />
-              </div>
-              <div>
-                <h1 className="font-black text-xl leading-none">PropTrack AI</h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</p>
-              </div>
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
+      <header className="bg-white border-b border-slate-100 z-50 sticky top-0 shadow-sm">
+        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2 rounded-xl text-white">
+              <Building2 size={24} />
             </div>
+            <div className="hidden sm:block">
+              <h1 className="font-black text-lg leading-none">PropTrack AI</h1>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</p>
+            </div>
+          </div>
 
-            {/* Este componente renderiza las carpetas blancas que se ven en tu captura */}
-            <div className="w-full md:w-auto overflow-x-auto">
-              <SearchGroupsList 
-                groups={searchGroups} 
-                activeGroupId={activeGroupId} 
-                onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
-              />
+          <div className="flex-1 px-8 overflow-x-auto no-scrollbar">
+            <SearchGroupsList 
+              groups={searchGroups} 
+              activeGroupId={activeGroupId} 
+              onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
+            />
+          </div>
+
+          <div className="flex items-center gap-4 pl-4 border-l border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center overflow-hidden border border-slate-200">
+                {session.user?.user_metadata?.avatar_url ? (
+                  <img src={session.user.user_metadata.avatar_url} alt="User" />
+                ) : (
+                  <User size={16} className="text-slate-400" />
+                )}
+              </div>
+              <span className="text-xs font-black text-slate-700 hidden lg:block uppercase tracking-tighter">
+                {session.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
+              </span>
             </div>
+            <button 
+              onClick={handleLogout}
+              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+              title="Cerrar sesión"
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* 2. CONTENIDO PRINCIPAL (PROPIEDADES) */}
       <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-10">
         {selectedProperty ? (
-          <PropertyDetails property={selectedProperty} onUpdate={handleUpdate} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
+          <PropertyDetails 
+            property={selectedProperty} 
+            onUpdate={(upd: any) => {
+              setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
+              supabase.from('properties').update({ title: upd.title, status: upd.status, comments: upd.comments }).eq('id', upd.id);
+            }} 
+            onBack={() => setSelectedProperty(null)} 
+            onDelete={() => {}} 
+          />
         ) : (
           <div className="space-y-8">
-            {/* BARRA DE BÚSQUEDA */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">
                     {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
                   </h2>
-                  <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">
-                    {filtered.length} Propiedades analizadas
-                  </p>
                </div>
                
                <div className="flex items-center gap-3">
-                  <input 
-                    type="text" 
-                    placeholder="Buscar..." 
-                    className="px-6 py-3 bg-slate-50 border-none rounded-2xl w-64 outline-none font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500/20"
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                  />
-                  <select 
-                    className="bg-slate-50 border-none rounded-2xl px-6 py-3 font-bold text-slate-600 outline-none"
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value as any)}
-                  >
-                    <option value="ALL">TODOS</option>
-                    {Object.values(PropertyStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar..." 
+                      className="pl-11 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-64 outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                </div>
             </div>
 
-            {/* DASHBOARD CON LA GRILLA DE PROPIEDADES */}
             <div className="relative">
               {activeGroupId && (
                 <Dashboard 
