@@ -1,206 +1,191 @@
-import React, { useState } from 'react';
-import { 
-  ArrowLeft, 
-  MapPin, 
-  Trash2, 
-  ExternalLink, 
-  MessageCircle, 
-  BedDouble, 
-  Bath, 
-  Maximize, 
-  Calendar,
-  Star,
-  User,
-  Phone
-} from 'lucide-react';
-import { Property, PropertyStatus } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createClient } from '@supabase/supabase-js'; 
+import { Property, PropertyStatus, SearchGroup } from './types';
+import Dashboard from './components/Dashboard';
+import PropertyDetails from './components/PropertyDetails';
+import SearchGroupsList from './components/SearchGroupsList'; 
+import { Building2, Loader2, Search, LogOut, User, Mail, Lock, ArrowRight } from 'lucide-react';
 
-interface PropertyDetailsProps {
-  property: Property;
-  onUpdate: (property: Property) => void;
-  onBack: () => void;
-  onDelete: () => void;
-}
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-export default function PropertyDetails({ property, onUpdate, onBack, onDelete }: PropertyDetailsProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
+export default function App() {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  
+  const [searchGroups, setSearchGroups] = useState<SearchGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [allProperties, setAllProperties] = useState<Property[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<PropertyStatus | 'ALL'>('ALL');
 
-  const statusColors = {
-    [PropertyStatus.INTERESTED]: 'bg-indigo-100 text-indigo-700',
-    [PropertyStatus.VISITING]: 'bg-amber-100 text-amber-700',
-    [PropertyStatus.OFFERED]: 'bg-emerald-100 text-emerald-700',
-    [PropertyStatus.REJECTED]: 'bg-rose-100 text-rose-700',
-    [PropertyStatus.COMPLETED]: 'bg-slate-100 text-slate-700',
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadData();
+      else setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) loadData();
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      const { error } = isRegistering 
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+      if (error) alert(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  const shareOnWhatsApp = () => {
-    const message = `¡Mira esta propiedad! \n\n${property.title}\nPrecio: ${property.price}\nLink: ${property.url}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const { data: g } = await supabase.from('search_groups').select('*').order('created_at', { ascending: false });
+      const { data: p } = await supabase.from('properties').select('*').order('created_at', { ascending: false });
+      
+      if (p && g) {
+        const props: Property[] = p.map(x => ({
+          id: x.id, searchGroupId: x.group_id, url: x.url, title: x.title || 'Propiedad',
+          price: x.price || 'Consultar', address: x.address || '', lat: x.lat || -34.6, lng: x.lng || -58.3,
+          sourceName: x.source_name || 'Portal', status: x.status || PropertyStatus.INTERESTED,
+          thumbnail: x.thumbnail || 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=800',
+          favicon: `https://www.google.com/s2/favicons?sz=64&domain=${new URL(x.url || 'http://localhost').hostname}`,
+          m2Covered: x.m2_covered || 0, isFavorite: x.is_favorite || false, createdAt: new Date(x.created_at).getTime(),
+          rating: x.rating || 0, bedrooms: x.bedrooms || 0, bathrooms: x.bathrooms || 0, sqft: x.m2_covered || 0, comments: x.comments || ''
+        }));
+        setAllProperties(props);
+        setSearchGroups(g.map(group => ({ ...group, propertyCount: props.filter(pr => pr.searchGroupId === group.id).length })));
+        if (g.length > 0 && !activeGroupId) setActiveGroupId(g[0].id);
+      }
+    } finally { setLoading(false); }
   };
+
+  const filtered = useMemo(() => {
+    return allProperties.filter(p => p.searchGroupId === activeGroupId && 
+      (p.title.toLowerCase().includes(searchTerm.toLowerCase())) && 
+      (statusFilter === 'ALL' || p.status === statusFilter));
+  }, [allProperties, activeGroupId, searchTerm, statusFilter]);
+
+  if (loading) return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+      <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
+      <span className="font-black text-xs uppercase tracking-widest text-slate-400">Iniciando PropTrack AI...</span>
+    </div>
+  );
+
+  if (!session) return (
+    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6 font-sans">
+      <div className="max-w-md w-full bg-white rounded-[3rem] p-12 shadow-2xl border border-slate-100">
+        <div className="flex flex-col items-center mb-10">
+          <div className="bg-indigo-600 p-4 rounded-3xl text-white shadow-xl shadow-indigo-100 mb-4">
+            <Building2 size={32} />
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Bienvenido</h1>
+          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Tamara Edition</p>
+        </div>
+
+        <form onSubmit={handleAuth} className="space-y-4">
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
+            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+              className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-600" required />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
+            <input type="password" placeholder="Contraseña" value={password} onChange={e => setPassword(e.target.value)}
+              className="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-600" required />
+          </div>
+          <button type="submit" disabled={authLoading}
+            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+            {authLoading ? <Loader2 className="animate-spin w-5 h-5" /> : (isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión')}
+            <ArrowRight size={20} />
+          </button>
+        </form>
+
+        <p className="text-center mt-8 text-slate-400 font-bold text-sm cursor-pointer hover:text-indigo-600 transition-colors"
+          onClick={() => setIsRegistering(!isRegistering)}>
+          {isRegistering ? '¿Ya tienes cuenta? Entra aquí' : '¿No tienes cuenta? Regístrate'}
+        </p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-      
-      {/* Barra de Navegación Superior */}
-      <div className="flex items-center justify-between mb-8">
-        <button 
-          onClick={onBack}
-          className="group flex items-center gap-3 text-slate-500 hover:text-slate-900 transition-colors bg-white px-5 py-2.5 rounded-2xl border border-slate-100 shadow-sm"
-        >
-          <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="font-bold text-sm uppercase tracking-tight">Volver al listado</span>
-        </button>
-
-        <div className="flex gap-3">
-          <button 
-            onClick={shareOnWhatsApp}
-            className="p-3 bg-green-50 text-green-600 rounded-2xl border border-green-100 hover:bg-green-600 hover:text-white transition-all shadow-sm"
-            title="Compartir por WhatsApp"
-          >
-            <MessageCircle size={22} />
-          </button>
-          <button 
-            onClick={() => setIsDeleting(true)}
-            className="p-3 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
-          >
-            <Trash2 size={22} />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* COLUMNA IZQUIERDA: Imagen y Galería */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="relative aspect-[16/10] rounded-[3rem] overflow-hidden shadow-2xl shadow-slate-200 border-4 border-white">
-            <img 
-              src={property.thumbnail || 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&q=80'} 
-              alt={property.title}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute top-6 left-6">
-              <span className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${statusColors[property.status]}`}>
-                {property.status}
-              </span>
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
+      <header className="bg-white border-b border-slate-100 z-50 sticky top-0 shadow-sm">
+        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-50">
+              <Building2 size={24} />
+            </div>
+            <div className="hidden md:block">
+              <h1 className="font-black text-lg leading-none">PropTrack AI</h1>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</p>
             </div>
           </div>
 
-          {/* Tarjeta de Ubicación */}
-          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
-                <MapPin className="text-indigo-600" size={24} />
-              </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-lg uppercase tracking-tight">Ubicación</h4>
-                <p className="text-slate-500 font-medium">{property.address || 'Dirección no especificada'}</p>
-              </div>
+          <div className="flex-1 px-8">
+            <SearchGroupsList groups={searchGroups} activeGroupId={activeGroupId} onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} />
+          </div>
+
+          <div className="flex items-center gap-4 pl-4 border-l border-slate-100">
+            <div className="hidden lg:flex flex-col items-end">
+              <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{session.user.email.split('@')[0]}</span>
+              <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Online</span>
             </div>
-            {/* Aquí iría el mini-mapa o el link externo */}
-            <a 
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(property.address)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 w-full flex items-center justify-center gap-2 py-4 bg-slate-50 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-100 transition-colors"
-            >
-              Ver en Google Maps <ExternalLink size={16} />
-            </a>
+            <button onClick={() => supabase.auth.signOut()} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+              <LogOut size={20} />
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* COLUMNA DERECHA: Info y Acción */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl shadow-slate-100 relative overflow-hidden">
-            {/* Elemento Decorativo */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-[5rem] -mr-16 -mt-16" />
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-10">
+        {selectedProperty ? (
+          <PropertyDetails property={selectedProperty} onUpdate={(upd: any) => {
+            setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
+            supabase.from('properties').update({ title: upd.title, status: upd.status }).eq('id', upd.id);
+          }} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
+        ) : (
+          <div className="space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                {searchGroups.find(g => g.id === activeGroupId)?.name || 'Dashboard'}
+              </h2>
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-11 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-64 outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm" />
+              </div>
+            </div>
 
             <div className="relative">
-              <p className="text-indigo-600 font-black text-xs uppercase tracking-[0.2em] mb-3">Propiedad Seleccionada</p>
-              <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-4">
-                {property.title}
-              </h1>
-              
-              <div className="flex items-baseline gap-2 mb-8">
-                <span className="text-4xl font-black text-indigo-600 tracking-tighter">{property.price}</span>
-                <span className="text-slate-400 font-bold uppercase text-xs">Total</span>
-              </div>
-
-              {/* Grid de Atributos (Match con el listado) */}
-              <div className="grid grid-cols-3 gap-4 mb-10">
-                <div className="bg-slate-50 p-4 rounded-3xl flex flex-col items-center text-center">
-                  <BedDouble className="text-slate-400 mb-2" size={20} />
-                  <span className="text-slate-900 font-black text-sm">{property.bedrooms}</span>
-                  <span className="text-slate-400 text-[9px] font-bold uppercase">Dorm.</span>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-3xl flex flex-col items-center text-center">
-                  <Bath className="text-slate-400 mb-2" size={20} />
-                  <span className="text-slate-900 font-black text-sm">{property.bathrooms}</span>
-                  <span className="text-slate-400 text-[9px] font-bold uppercase">Baños</span>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-3xl flex flex-col items-center text-center">
-                  <Maximize className="text-slate-400 mb-2" size={20} />
-                  <span className="text-slate-900 font-black text-sm">{property.sqft}</span>
-                  <span className="text-slate-400 text-[9px] font-bold uppercase">M² Tot.</span>
-                </div>
-              </div>
-
-              {/* Contacto del Vendedor */}
-              <div className="space-y-4 border-t border-slate-50 pt-8">
-                <h5 className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Contacto Directo</h5>
-                <div className="flex items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                  <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-slate-400">
-                    <User size={24} />
-                  </div>
-                  <div>
-                    <p className="font-black text-slate-800 text-sm leading-none mb-1">{property.contactName || 'Inmobiliaria'}</p>
-                    <p className="text-slate-500 text-xs flex items-center gap-1 font-medium">
-                      <Phone size={12} /> {property.contactPhone || 'No especificado'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <a 
-                href={property.url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-8 w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-center block hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 group"
-              >
-                VISITAR PUBLICACIÓN ORIGINAL
-                <ExternalLink size={18} className="inline-all ml-2 group-hover:translate-x-1 transition-transform" />
-              </a>
+              {activeGroupId && (
+                <Dashboard 
+                  groupName={searchGroups.find(g => g.id === activeGroupId)?.name || ''}
+                  properties={filtered} 
+                  onSelect={(id) => setSelectedProperty(allProperties.find(p => p.id === id) || null)}
+                  onUpdateGroup={() => {}} 
+                />
+              )}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Modal de Confirmación de Borrado */}
-      {isDeleting && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full text-center shadow-2xl border border-white">
-            <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Trash2 size={40} />
-            </div>
-            <h3 className="text-2xl font-black text-slate-900 mb-2">¿Estás seguro?</h3>
-            <p className="text-slate-500 font-medium mb-8">Esta acción eliminará la propiedad de tu proyecto de forma permanente.</p>
-            <div className="flex gap-4">
-              <button 
-                onClick={() => setIsDeleting(false)}
-                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black hover:bg-slate-200 transition-colors"
-              >
-                CANCELAR
-              </button>
-              <button 
-                onClick={onDelete}
-                className="flex-1 py-4 bg-rose-500 text-white rounded-2xl font-black hover:bg-rose-600 transition-shadow shadow-lg shadow-rose-200"
-              >
-                BORRAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   );
 }
