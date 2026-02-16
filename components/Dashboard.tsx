@@ -5,7 +5,6 @@ import {
   Map as MapIcon, 
   LayoutGrid, 
   Check, 
-  X, 
   Bed, 
   Maximize, 
   ChevronRight,
@@ -26,67 +25,36 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-8">
       
-      {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Workspace Activo
-            </span>
+      {/* --- SELECTOR DE VISTA Y CONTROLES SUPERIORES --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
+            <button 
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${viewMode === 'grid' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:bg-slate-50'}`}
+            >
+              <LayoutGrid size={16} /> LISTA
+            </button>
+            <button 
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-400 hover:bg-slate-50'}`}
+            >
+              <MapIcon size={16} /> MAPA
+            </button>
           </div>
-          
-          {isEditing ? (
-            <div className="flex items-center gap-2 mt-2">
-              <input 
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="text-3xl md:text-4xl font-black text-slate-900 border-b-2 border-indigo-500 outline-none bg-transparent"
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
-              />
-              <button onClick={handleUpdate} className="p-2 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100">
-                <Check className="w-5 h-5" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 group">
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                {groupName}
-              </h2>
-              <button onClick={() => setIsEditing(true)} className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all md:opacity-0 md:group-hover:opacity-100">
-                <Edit3 className="w-6 h-6" />
-              </button>
-            </div>
-          )}
-          
-          <p className="text-slate-400 font-medium flex items-center gap-2 pt-1">
-            <Home className="w-4 h-4 text-slate-300" />
-            <span className="font-bold text-slate-500">{properties.length}</span> propiedades analizadas
-          </p>
         </div>
 
-        {/* SELECTOR DE VISTA */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl self-start md:self-end shadow-inner">
-          <button 
-            onClick={() => setViewMode('grid')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'grid' ? 'bg-white shadow-md text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            <LayoutGrid className="w-4 h-4" /> Lista
-          </button>
-          <button 
-            onClick={() => setViewMode('map')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'map' ? 'bg-white shadow-md text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            <MapIcon className="w-4 h-4" /> Mapa
-          </button>
+        <div className="flex items-center gap-2 text-slate-400">
+          <Home size={16} />
+          <span className="text-sm font-bold"><span className="text-slate-900">{properties.length}</span> Propiedades encontradas</span>
         </div>
       </div>
 
-      {/* --- CONTENIDO --- */}
+      {/* --- CONTENIDO DINÁMICO --- */}
       {viewMode === 'map' ? (
-        <div className="w-full h-[650px] rounded-[40px] overflow-hidden border-8 border-white shadow-2xl relative bg-slate-100">
+        <div className="w-full h-[600px] rounded-[2.5rem] overflow-hidden border-8 border-white shadow-xl bg-slate-100">
           <MapView properties={properties} onSelectProperty={onSelect} />
         </div>
       ) : (
@@ -95,83 +63,64 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup }) => {
             <div 
               key={property.id}
               onClick={() => onSelect(property.id)}
-              className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.12)] transition-all duration-500 cursor-pointer hover:-translate-y-2 relative"
+              className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2"
             >
-              {/* Imagen con badge de precio flotante */}
+              {/* Imagen */}
               <div className="aspect-[4/3] relative overflow-hidden">
                 <img 
                   src={property.thumbnail} 
-                  className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   alt={property.title}
-                  onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=800'; }}
+                  onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=800'; }}
                 />
-                
-                {/* Overlay gradiente */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent opacity-60" />
-
-                {/* Badge de Precio */}
-                <div className="absolute bottom-4 left-4">
-                  <div className="bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl">
-                    <p className="text-indigo-600 font-black text-xl leading-none tracking-tight">
-                      {property.price}
-                    </p>
-                  </div>
+                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-sm">
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{property.sourceName}</span>
                 </div>
-
-                {/* Fuente / Tag */}
-                <div className="absolute top-4 right-4 bg-slate-900/60 backdrop-blur-md text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border border-white/20">
-                  {property.sourceName}
+                <div className="absolute bottom-4 left-4">
+                  <div className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-black shadow-lg">
+                    {property.price}
+                  </div>
                 </div>
               </div>
 
-              {/* Información Inferior */}
+              {/* Info */}
               <div className="p-7">
-                <h3 className="font-bold text-slate-800 text-lg mb-6 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                  {property.title}
-                </h3>
+                <h3 className="font-black text-slate-800 text-lg mb-4 line-clamp-1">{property.title}</h3>
                 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-5">
+                <div className="flex items-center justify-between border-t border-slate-50 pt-4">
+                  <div className="flex items-center gap-4">
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Dormitorios</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center">
-                          <Bed className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <span className="font-black text-slate-700 text-sm">{property.bedrooms}</span>
+                      <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Dorms</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Bed size={14} className="text-slate-400" />
+                        <span className="font-black text-sm text-slate-700">{property.bedrooms}</span>
                       </div>
                     </div>
-                    
-                    <div className="w-px h-10 bg-slate-100" />
-                    
+                    <div className="w-px h-6 bg-slate-100" />
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mb-1">Superficie</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center">
-                          <Maximize className="w-4 h-4 text-slate-400" />
-                        </div>
-                        <span className="font-black text-slate-700 text-sm">{property.sqft}m²</span>
+                      <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Sup</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Maximize size={14} className="text-slate-400" />
+                        <span className="font-black text-sm text-slate-700">{property.sqft}m²</span>
                       </div>
                     </div>
                   </div>
                   
-                  {/* Botón de acción */}
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm shadow-indigo-100 group-hover:shadow-indigo-200">
-                    <ChevronRight className="w-6 h-6" />
+                  <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                    <ChevronRight size={20} />
                   </div>
                 </div>
               </div>
             </div>
           ))}
 
-          {/* EMPTY STATE */}
+          {/* Estado vacío */}
           {properties.length === 0 && (
-            <div className="col-span-full py-32 text-center border-4 border-dashed border-slate-100 rounded-[3rem] bg-slate-50/50">
-              <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-                <MapPin className="w-8 h-8 text-indigo-200" />
+            <div className="col-span-full py-24 text-center border-4 border-dashed border-slate-100 rounded-[3rem]">
+              <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MapPin className="text-slate-200" size={32} />
               </div>
-              <h4 className="text-slate-900 font-black text-xl mb-1">Tu lista está vacía</h4>
-              <p className="text-slate-400 text-sm">Comienza agregando enlaces de propiedades arriba.</p>
+              <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No hay propiedades en este grupo</p>
             </div>
           )}
         </div>
