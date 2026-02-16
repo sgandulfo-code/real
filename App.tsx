@@ -70,7 +70,6 @@ export default function App() {
         setAllProperties(props);
         setSearchGroups(g.map(group => ({ ...group, propertyCount: props.filter(pr => pr.searchGroupId === group.id).length })));
         
-        // CAMBIO CLAVE: Ya no seleccionamos automáticamente el primer grupo g[0]
         if (!activeGroupId) setActiveGroupId(null);
       }
     } finally { setLoading(false); }
@@ -128,23 +127,38 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
-      <header className="bg-white border-b border-slate-100 z-50 sticky top-0 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveGroupId(null)}>
+      {/* PARCHE DE CSS PARA EVITAR DESFASES */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        header { min-height: 80px; height: auto !important; }
+      `}</style>
+
+      <header className="bg-white border-b border-slate-100 z-50 sticky top-0 shadow-sm w-full">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          
+          {/* LOGO */}
+          <div className="flex items-center gap-3 cursor-pointer shrink-0" onClick={() => setActiveGroupId(null)}>
             <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-50">
               <Building2 size={24} />
             </div>
-            <div className="hidden md:block">
+            <div className="hidden sm:block">
               <h1 className="font-black text-lg leading-none">PropTrack AI</h1>
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Tamara Edition</p>
             </div>
           </div>
 
-          <div className="flex-1 px-8">
-            <SearchGroupsList groups={searchGroups} activeGroupId={activeGroupId} onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} />
+          {/* LISTA DE GRUPOS (CARPETAS) */}
+          <div className="flex-1 w-full overflow-x-auto no-scrollbar py-2">
+            <SearchGroupsList 
+                groups={searchGroups} 
+                activeGroupId={activeGroupId} 
+                onSelectGroup={(id) => { setActiveGroupId(id); setSelectedProperty(null); }} 
+            />
           </div>
 
-          <div className="flex items-center gap-4 pl-4 border-l border-slate-100">
+          {/* PERFIL Y LOGOUT */}
+          <div className="flex items-center gap-4 pl-4 border-l border-slate-100 shrink-0">
             <div className="hidden lg:flex flex-col items-end">
               <span className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{session.user.email.split('@')[0]}</span>
               <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest">Online</span>
@@ -156,28 +170,27 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-10">
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-10 relative">
         {selectedProperty ? (
           <PropertyDetails property={selectedProperty} onUpdate={(upd: any) => {
             setAllProperties(prev => prev.map(p => p.id === upd.id ? upd : p));
             supabase.from('properties').update({ title: upd.title, status: upd.status }).eq('id', upd.id);
           }} onBack={() => setSelectedProperty(null)} onDelete={() => {}} />
         ) : activeGroupId ? (
-          // VISTA CUANDO HAY UN GRUPO SELECCIONADO
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-50">
               <div className="flex items-center gap-4">
-                 <button onClick={() => setActiveGroupId(null)} className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all">
+                 <button onClick={() => setActiveGroupId(null)} className="p-2 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 transition-all">
                     <ArrowRight size={18} className="rotate-180" />
                  </button>
-                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">
                   {searchGroups.find(g => g.id === activeGroupId)?.name}
                 </h2>
               </div>
-              <div className="relative group">
+              <div className="relative group w-full md:w-auto">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                 <input type="text" placeholder="Buscar en este grupo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-11 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-64 outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all shadow-sm" />
+                  className="w-full md:w-64 pl-11 pr-6 py-3 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-bold text-slate-600 focus:ring-4 focus:ring-indigo-500/5 transition-all" />
               </div>
             </div>
 
@@ -191,11 +204,11 @@ export default function App() {
             </div>
           </div>
         ) : (
-          // VISTA INICIAL (SIN GRUPO SELECCIONADO)
-          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-in fade-in zoom-in duration-1000">
-             <div className="relative">
+          /* VISTA BIENVENIDA LIMPIA */
+          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-6 animate-in fade-in zoom-in duration-1000">
+              <div className="relative">
                 <div className="absolute -inset-4 bg-indigo-500/10 blur-3xl rounded-full"></div>
-                <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 relative">
+                <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl border border-slate-100 relative">
                    <LayoutGrid size={64} className="text-indigo-600 mx-auto mb-6 opacity-20" />
                    <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">
                      ¡Todo listo, {session.user.email.split('@')[0]}!
@@ -209,7 +222,7 @@ export default function App() {
                       Elige un grupo arriba
                    </div>
                 </div>
-             </div>
+              </div>
           </div>
         )}
       </main>
