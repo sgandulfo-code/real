@@ -68,6 +68,23 @@ export default function App() {
     } finally { setLoading(false); }
   };
 
+  // NUEVA FUNCIÓN: Para que el botón de "Nuevo Proyecto" funcione realmente
+  const handleCreateGroup = async (name: string, description: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('search_groups')
+        .insert([{ name, description, user_id: session.user.id }])
+        .select();
+      
+      if (error) throw error;
+      if (data) {
+        loadData(); // Recargamos para que aparezca la nueva carpeta
+      }
+    } catch (error: any) {
+      alert("Error al crear proyecto: " + error.message);
+    }
+  };
+
   const filtered = useMemo(() => {
     return allProperties.filter(p => p.searchGroupId === activeGroupId && 
       (p.title.toLowerCase().includes(searchTerm.toLowerCase())) && 
@@ -108,7 +125,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900 overflow-x-hidden">
       
-      {/* HEADER FIJO SUPERIOR */}
       <header className="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-[100] w-full">
         <div className="max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setActiveGroupId(null); setSelectedProperty(null); }}>
@@ -135,13 +151,14 @@ export default function App() {
 
       <main className="flex-1 w-full max-w-[1600px] mx-auto p-6 relative">
         
-        {/* LISTA DE CARPETAS: Solo se muestra si NO hay una propiedad seleccionada */}
         {!selectedProperty && (
           <div className="mb-12 relative z-10">
             <SearchGroupsList 
               groups={searchGroups} 
+              allProperties={allProperties} // IMPORTANTE: Agregado para que funcione el contador
+              onCreate={handleCreateGroup}  // IMPORTANTE: Agregado para crear carpetas
               activeGroupId={activeGroupId} 
-              onSelectGroup={(id) => {
+              onSelectGroup={(id: string) => { // Coincide con el nombre de prop en el componente corregido
                 setActiveGroupId(id);
                 setSelectedProperty(null);
               }} 
@@ -189,7 +206,6 @@ export default function App() {
             />
           </div>
         ) : (
-          /* VISTA BIENVENIDA (Captura 4) */
           <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in duration-1000">
             <div className="bg-white p-14 rounded-[3.5rem] shadow-2xl border border-slate-50 max-w-lg relative">
                <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white p-4 rounded-3xl shadow-xl">
