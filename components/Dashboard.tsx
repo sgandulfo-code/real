@@ -1,151 +1,160 @@
 import React, { useState } from 'react';
-import { Search, Plus, Loader2, Link as LinkIcon, AlertCircle, LayoutGrid } from 'lucide-react';
-import { Property } from '../types';
-import PropertyCard from './PropertyCard';
-import PropertyVerifier from './PropertyVerifier';
-import { createClient } from '@supabase/supabase-js';
+import { 
+  Edit3, Home, Map as MapIcon, LayoutGrid, Check, X, 
+  Bed, Maximize, ChevronRight, MapPin, Link as LinkIcon, Plus
+} from 'lucide-react';
+import MapView from './MapView';
 
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
-
-interface DashboardProps {
-  groupName: string;
-  activeGroupId: string;
-  properties: Property[];
-  onSelect: (id: string) => void;
-  onUpdateGroup: () => void;
-}
-
-export default function Dashboard({ groupName, activeGroupId, properties, onSelect, onUpdateGroup }: DashboardProps) {
+const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup, onAddProperty }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [newName, setNewName] = useState(groupName);
+  const [viewMode, setViewMode] = useState('grid');
   const [url, setUrl] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showVerifier, setShowVerifier] = useState(false);
-  const [pendingUrl, setPendingUrl] = useState('');
 
-  // 1. Inicia el proceso de análisis abriendo el Verificador
-  const handleStartAnalysis = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url) return;
-    setPendingUrl(url);
-    setShowVerifier(true);
+  // 1. Manejo del cambio de nombre del grupo
+  const handleUpdate = () => {
+    if (newName.trim()) {
+      onUpdateGroup(newName);
+      setIsEditing(false);
+    }
   };
 
-  // 2. Función que se ejecuta cuando el usuario confirma los datos en el Verificador
-  const handleConfirmSave = async (finalData: any) => {
-    try {
-      setIsAnalyzing(true);
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { error } = await supabase.from('properties').insert([{
-        group_id: activeGroupId,
-        user_id: session.user.id,
-        url: finalData.url,
-        title: finalData.title,
-        price: finalData.price,
-        address: finalData.address,
-        m2_covered: finalData.sqft,
-        bedrooms: finalData.bedrooms,
-        bathrooms: finalData.bathrooms,
-        source_name: finalData.sourceName,
-        thumbnail: finalData.thumbnail || 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=800'
-      }]);
-
-      if (error) throw error;
-
-      // Limpiar y refrescar
-      setShowVerifier(false);
+  // 2. Manejo de nueva propiedad (lo que le faltaba al viejo)
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (url.trim()) {
+      onAddProperty(url); // Esto dispararía el Verificador/Tamara AI
       setUrl('');
-      onUpdateGroup(); // Para que App.tsx recargue los datos de Supabase
-      
-    } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("No se pudo guardar la propiedad");
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-700">
       
-      {/* CAPA 0: VERIFICADOR (MODAL OVERLAY) */}
-      {showVerifier && (
-        <PropertyVerifier 
-          url={pendingUrl} 
-          onCancel={() => setShowVerifier(false)} 
-          onConfirm={handleConfirmSave} 
-        />
-      )}
-
-      {/* SECCIÓN 1: CAPTURA DE URL */}
-      <section className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
-        {/* Decoración de fondo */}
-        <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
-          <LayoutGrid size={120} />
-        </div>
-
-        <div className="max-w-3xl mx-auto text-center space-y-6 relative z-10">
-          <div className="inline-flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
-            <Plus size={14} /> Nueva Propiedad
+      {/* --- HEADER --- */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Workspace Activo
+            </span>
           </div>
-          <h3 className="text-3xl font-black text-slate-900 tracking-tight">¿Qué propiedad analizamos hoy?</h3>
           
-          <form onSubmit={handleStartAnalysis} className="relative group">
-            <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors">
-              <LinkIcon size={22} />
+          {isEditing ? (
+            <div className="flex items-center gap-2 mt-2">
+              <input 
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="text-3xl md:text-4xl font-black text-slate-900 border-b-2 border-indigo-500 outline-none bg-transparent"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
+              />
+              <button onClick={handleUpdate} className="p-2 bg-emerald-500 text-white rounded-full">
+                <Check className="w-5 h-5" />
+              </button>
             </div>
-            <input 
-              type="url" 
-              placeholder="Pega el link de Zonaprop, Argenprop, Remax..." 
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="w-full pl-16 pr-44 py-6 bg-slate-50 border-2 border-transparent focus:border-indigo-600/10 focus:bg-white rounded-[2.5rem] outline-none font-bold text-slate-700 transition-all shadow-inner text-lg"
-              required
-            />
-            <button 
-              type="submit"
-              disabled={isAnalyzing}
-              className="absolute right-3 top-3 bottom-3 px-10 bg-slate-900 text-white rounded-[1.8rem] font-black text-xs uppercase tracking-widest hover:bg-indigo-600 transition-all disabled:bg-slate-200 flex items-center gap-2 shadow-xl"
-            >
-              {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : 'Analizar'}
-            </button>
-          </form>
-          <p className="text-slate-400 text-xs font-medium">
-            La IA detectará automáticamente precio, ambientes y ubicación.
+          ) : (
+            <div className="flex items-center gap-4 group">
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                {groupName}
+              </h2>
+              <button onClick={() => setIsEditing(true)} className="p-2 text-slate-300 hover:text-indigo-600 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                <Edit3 className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+          
+          <p className="text-slate-400 font-medium flex items-center gap-2 pt-1">
+            <Home className="w-4 h-4 text-slate-300" />
+            <span className="font-bold text-slate-500">{properties.length}</span> propiedades analizadas
           </p>
         </div>
-      </section>
 
-      {/* SECCIÓN 2: GRILLA DE RESULTADOS */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-2">
-            <div className="w-1 h-1 bg-indigo-500 rounded-full"></div>
-            Propiedades en {groupName}
-          </h3>
+        {/* SELECTOR DE VISTA */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl self-start md:self-end shadow-inner">
+          <button 
+            onClick={() => setViewMode('grid')}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'grid' ? 'bg-white shadow-md text-slate-900' : 'text-slate-400'}`}
+          >
+            <LayoutGrid className="w-4 h-4" /> Lista
+          </button>
+          <button 
+            onClick={() => setViewMode('map')}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'map' ? 'bg-white shadow-md text-slate-900' : 'text-slate-400'}`}
+          >
+            <MapIcon className="w-4 h-4" /> Mapa
+          </button>
         </div>
+      </div>
 
+      {/* --- BARRA DE CAPTURA (Agregada para que sea funcional) --- */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50">
+        <form onSubmit={handleSubmit} className="flex gap-4">
+          <div className="flex-1 relative">
+            <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <input 
+              type="url"
+              placeholder="Pega el link de la propiedad aquí..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-indigo-500/20 font-medium text-slate-600 transition-all"
+            />
+          </div>
+          <button className="bg-slate-900 text-white px-8 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg shadow-slate-200">
+            <Plus className="w-5 h-5" /> Analizar
+          </button>
+        </form>
+      </div>
+
+      {/* --- CONTENIDO --- */}
+      {viewMode === 'map' ? (
+        <div className="w-full h-[650px] rounded-[40px] overflow-hidden border-8 border-white shadow-2xl relative bg-slate-100">
+          <MapView properties={properties} onSelectProperty={onSelect} />
+        </div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {properties.length > 0 ? (
-            properties.map((property) => (
-              <PropertyCard 
-                key={property.id} 
-                property={property} 
-                onClick={() => onSelect(property.id)} 
-              />
-            ))
-          ) : (
-            <div className="col-span-full py-32 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[4rem] flex flex-col items-center justify-center text-slate-400 text-center">
-              <div className="bg-white p-6 rounded-full shadow-sm mb-6">
-                <AlertCircle size={32} className="opacity-20" />
+          {properties.map((property) => (
+            <div 
+              key={property.id}
+              onClick={() => onSelect(property.id)}
+              className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2 relative"
+            >
+              {/* Contenido de la tarjeta (se mantiene igual a tu diseño original) */}
+              <div className="aspect-[4/3] relative overflow-hidden">
+                <img src={property.thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={property.title} />
+                <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl">
+                  <p className="text-indigo-600 font-black text-xl leading-none">{property.price}</p>
+                </div>
               </div>
-              <p className="font-black uppercase tracking-widest text-xs">No hay propiedades guardadas</p>
-              <p className="text-xs font-medium mt-2 opacity-60">Pega un link arriba para comenzar el análisis.</p>
+              <div className="p-7">
+                <h3 className="font-bold text-slate-800 text-lg mb-6 line-clamp-1">{property.title}</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-5 text-slate-700">
+                    <span className="flex items-center gap-2"><Bed className="w-4 h-4 text-slate-400" /> {property.bedrooms}</span>
+                    <span className="flex items-center gap-2"><Maximize className="w-4 h-4 text-slate-400" /> {property.sqft}m²</span>
+                  </div>
+                  <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                    <ChevronRight className="w-5 h-5" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* EMPTY STATE */}
+          {properties.length === 0 && (
+            <div className="col-span-full py-32 text-center border-4 border-dashed border-slate-100 rounded-[3rem] bg-slate-50/50">
+              <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl text-indigo-200">
+                <MapPin className="w-8 h-8" />
+              </div>
+              <h4 className="text-slate-900 font-black text-xl mb-1">Tu lista está vacía</h4>
+              <p className="text-slate-400 text-sm">Comienza agregando enlaces de propiedades arriba.</p>
             </div>
           )}
         </div>
-      </section>
+      )}
     </div>
   );
-}
+};
+
+export default Dashboard;
