@@ -19,14 +19,12 @@
             padding: 0;
             background-color: #F8FAFC;
         }
-        /* Esta regla asegura que los clics pasen a través de capas invisibles */
         #root { 
             position: relative;
             z-index: 1;
         }
         .leaflet-container { width: 100%; height: 100%; z-index: 1; }
         
-        /* Ocultar scrollbars sin perder funcionalidad */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -44,6 +42,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/index.tsx"></script>
 </body>
 </html>
