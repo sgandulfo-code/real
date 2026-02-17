@@ -19,17 +19,26 @@
             padding: 0;
             background-color: #F8FAFC;
         }
+        /* Contenedor principal de React */
         #root { 
             position: relative;
             z-index: 1;
         }
-        .leaflet-container { width: 100%; height: 100%; z-index: 1; }
+        /* Estilos para el mapa */
+        .leaflet-container { 
+            width: 100%; 
+            height: 100%; 
+            z-index: 1; 
+        }
+        
+        /* Utilidades para scroll */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
-    <script type="module" src="./src/index.tsx"></script>
+
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
