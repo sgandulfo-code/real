@@ -19,11 +19,11 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup, onAddProper
     }
   };
 
-  // 2. Manejo de nueva propiedad (lo que le faltaba al viejo)
+  // 2. Manejo de nueva propiedad (Dispara Tamara AI)
   const handleSubmit = (e) => {
     e.preventDefault();
     if (url.trim()) {
-      onAddProperty(url); // Esto dispararía el Verificador/Tamara AI
+      onAddProperty(url); 
       setUrl('');
     }
   };
@@ -87,20 +87,21 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup, onAddProper
         </div>
       </div>
 
-      {/* --- BARRA DE CAPTURA (Agregada para que sea funcional) --- */}
+      {/* --- BARRA DE CAPTURA SIEMPRE VISIBLE --- */}
       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50">
         <form onSubmit={handleSubmit} className="flex gap-4">
           <div className="flex-1 relative">
             <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input 
               type="url"
-              placeholder="Pega el link de la propiedad aquí..."
+              required
+              placeholder="Pega el link de la propiedad aquí para que Tamara la analice..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-indigo-500/20 font-medium text-slate-600 transition-all"
             />
           </div>
-          <button className="bg-slate-900 text-white px-8 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg shadow-slate-200">
+          <button type="submit" className="bg-slate-900 text-white px-8 rounded-2xl font-bold flex items-center gap-2 hover:bg-indigo-600 transition-colors shadow-lg shadow-slate-200">
             <Plus className="w-5 h-5" /> Analizar
           </button>
         </form>
@@ -113,42 +114,47 @@ const Dashboard = ({ properties, onSelect, groupName, onUpdateGroup, onAddProper
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {properties.map((property) => (
-            <div 
-              key={property.id}
-              onClick={() => onSelect(property.id)}
-              className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2 relative"
-            >
-              {/* Contenido de la tarjeta (se mantiene igual a tu diseño original) */}
-              <div className="aspect-[4/3] relative overflow-hidden">
-                <img src={property.thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={property.title} />
-                <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl">
-                  <p className="text-indigo-600 font-black text-xl leading-none">{property.price}</p>
-                </div>
-              </div>
-              <div className="p-7">
-                <h3 className="font-bold text-slate-800 text-lg mb-6 line-clamp-1">{property.title}</h3>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-5 text-slate-700">
-                    <span className="flex items-center gap-2"><Bed className="w-4 h-4 text-slate-400" /> {property.bedrooms}</span>
-                    <span className="flex items-center gap-2"><Maximize className="w-4 h-4 text-slate-400" /> {property.sqft}m²</span>
-                  </div>
-                  <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                    <ChevronRight className="w-5 h-5" />
+          {properties.length > 0 ? (
+            properties.map((property) => (
+              <div 
+                key={property.id}
+                onClick={() => onSelect(property.id)}
+                className="group bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-500 cursor-pointer hover:-translate-y-2 relative"
+              >
+                <div className="aspect-[4/3] relative overflow-hidden">
+                  <img src={property.thumbnail} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={property.title} />
+                  <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-md px-4 py-2 rounded-2xl shadow-xl">
+                    <p className="text-indigo-600 font-black text-xl leading-none">{property.price}</p>
                   </div>
                 </div>
+                <div className="p-7">
+                  <h3 className="font-bold text-slate-800 text-lg mb-6 line-clamp-1">{property.title}</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-5 text-slate-700">
+                      <span className="flex items-center gap-2"><Bed className="w-4 h-4 text-slate-400" /> {property.bedrooms}</span>
+                      <span className="flex items-center gap-2"><Maximize className="w-4 h-4 text-slate-400" /> {property.sqft}m²</span>
+                    </div>
+                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                      <ChevronRight className="w-5 h-5" />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-
-          {/* EMPTY STATE */}
-          {properties.length === 0 && (
-            <div className="col-span-full py-32 text-center border-4 border-dashed border-slate-100 rounded-[3rem] bg-slate-50/50">
-              <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl text-indigo-200">
-                <MapPin className="w-8 h-8" />
+            ))
+          ) : (
+            /* --- EMPTY STATE ACTUALIZADO --- */
+            <div className="col-span-full py-24 text-center border-4 border-dashed border-slate-100 rounded-[3rem] bg-slate-50/50 flex flex-col items-center">
+              <div className="bg-white w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-xl text-indigo-300">
+                <Plus className="w-8 h-8" />
               </div>
-              <h4 className="text-slate-900 font-black text-xl mb-1">Tu lista está vacía</h4>
-              <p className="text-slate-400 text-sm">Comienza agregando enlaces de propiedades arriba.</p>
+              <h4 className="text-slate-900 font-black text-2xl mb-2">¡Comienza tu búsqueda!</h4>
+              <p className="text-slate-500 font-medium max-w-sm mx-auto mb-8">
+                Este grupo está vacío. Pega un enlace de Zonaprop o Argenprop en la barra superior para empezar el análisis.
+              </p>
+              <div className="flex items-center gap-2 text-indigo-500 font-bold animate-bounce">
+                <Plus className="w-5 h-5" />
+                Sube tu primera propiedad arriba
+              </div>
             </div>
           )}
         </div>
